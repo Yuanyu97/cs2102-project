@@ -19,38 +19,38 @@ INSERT INTO Rooms(location, seating_capacity) VALUES('Tenteram', 13);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Ang Mo Kio', 50);
 
 -- checked
-CREATE TABLE Customers (
-  cust_id SERIAL PRIMARY KEY,
-  name text,
-  address text,
-  email text,
-  phone text
-);
-
-INSERT INTO Customers(name, address, email, phone) VALUES('Freddy', 'Bishan St 11', 'f@yahoo.com', '81234567');
-INSERT INTO Customers(name, address, email, phone) VALUES('Wei Boon', 'KR Hall', 'W@gmail.com', '89876543');
-INSERT INTO Customers(name, address, email, phone) VALUES('Weng Fai', 'Sheares Juzz', 'weng@yahoo.com', '91234567');
-INSERT INTO Customers(name, address, email, phone) VALUES('Dian Hao', 'Best Chai', 'd@outlook.com', '69696969');
-INSERT INTO Customers(name, address, email, phone) VALUES('Johnny Sins', 'USA', 'ph@onz.com', '61234567');
-
--- checked
 CREATE TABLE Credit_cards ( 
   credit_card_number text PRIMARY KEY,
   CVV CHAR(3) NOT NULL,
-  owned_by integer NOT NULL,
   expiry_date DATE NOT NULL,
   from_date DATE,
-  FOREIGN KEY (owned_by) REFERENCES Customers(cust_id),
   check (from_date < expiry_date)
   -- combined with Owns table (Key + Total Participation Constrainteger)
   -- SET TRIGGER: Every customer must own at least one credit card (when inserting new customer)
 );
 
-INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', 1, '2021-03-29', '2020-03-29');
-INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', 2, '2021-02-15', '2019-07-15');
-INSERT INTO Credit_cards VALUES('4628 4500 8593 8572', '678', 3, '2021-01-05', '2010-05-28');
-INSERT INTO Credit_cards VALUES('4628 4500 6969 6969', '901', 4, '2025-12-31', '2015-11-09');
-INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', 5, '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', '2021-03-29', '2020-03-29');
+INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', '2021-02-15', '2019-07-15');
+INSERT INTO Credit_cards VALUES('4628 4500 8593 8572', '678', '2021-01-05', '2010-05-28');
+INSERT INTO Credit_cards VALUES('4628 4500 6969 6969', '901', '2025-12-31', '2015-11-09');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', '2030-09-08', '2021-02-10');
+
+-- checked
+CREATE TABLE Customers (
+  cust_id SERIAL PRIMARY KEY,
+  credit_card_number TEXT NOT NULL,
+  name text NOT NULL,
+  address text,
+  email text,
+  phone text,
+  FOREIGN KEY (credit_card_number) references Credit_cards
+);
+
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Freddy', '4628 4500 1234 5678', 'Bishan St 11', 'f@yahoo.com', '81234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Wei Boon', '4628 4500 9876 5432', 'KR Hall', 'W@gmail.com', '89876543');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Weng Fai', '4628 4500 8593 8572', 'Sheares Juzz', 'weng@yahoo.com', '91234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Dian Hao', '4628 4500 6969 6969', 'Best Chai', 'd@outlook.com', '69696969');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins', '4628 4500 5893 9724', 'USA', 'ph@onz.com', '61234567');
 
 -- checked
 CREATE TABLE Course_packages (
@@ -63,7 +63,7 @@ CREATE TABLE Course_packages (
   check (sale_start_date <= sale_end_date)
 );
 
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-30', '2021-04-26', 10, 'Free Udemy Course', 69.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-20', '2021-03-21', 10, 'Free Udemy Course', 69.99);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-15', '2021-06-30', 25, 'React Course', 29.90);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2022-08-24', '2022-09-15', 50, 'Ruby Course', 10.90);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-06-30', '2021-09-26', 35, 'Rest API Course', 8.88);
@@ -199,13 +199,14 @@ CREATE TABLE Offerings (
   fees FLOAT,
   aid integer NOT NULL REFERENCES Administrators,
   PRIMARY KEY(course_id, launch_date),
-  check((start_date <= end_date) and (launch_date <= start_date))
+  check((start_date <= end_date) and (launch_date <= start_date) and (registration_deadline >= launch_date))
   -- Combined with Has table (WEAK ENTITIY OF COURSE)
   -- Combined with Handles table (Key + Total Participation Constrainteger)
   -- SET A TRIGGER: Every offering has at least 1 session
+  -- SET A TRIGGER: seating_capacity = sum of session capacity
 );
 
-INSERT INTO Offerings VALUES (1, '2020-04-04', '2020-05-05', '2020-06-30', 60, 100, '2020-04-10', 99.99, 3);
+INSERT INTO Offerings VALUES (1, '2020-04-04', '2020-05-05', '2020-06-30', 60, 2, '2020-04-10', 99.99, 3);
 INSERT INTO Offerings VALUES (2, '2019-04-04', '2019-05-05', '2019-06-30', 100, 90, '2019-04-10', 59.99, 4);
 
 -- checked SUSS day, hour spoil. ER no good
@@ -251,11 +252,13 @@ CREATE TABLE Registers (
   course_id integer,
   launch_date DATE,
   registration_date DATE,
-  credit_card_number text,
-  PRIMARY KEY(registration_date, credit_card_number, sid, course_id, launch_date),
-  FOREIGN KEY (credit_card_number) REFERENCES Credit_cards,
-  FOREIGN KEY (sid, course_id, launch_date) references Sessions
+  cust_id INTEGER,
+  PRIMARY KEY(registration_date, cust_id, sid, course_id, launch_date),
+  FOREIGN KEY (cust_id) REFERENCES Customers,
+  FOREIGN KEY (sid, course_id, launch_date) references Sessions,
+  check (registration_date >= launch_date)
 );
+
 
 -- checked
 CREATE TABLE Redeems (
