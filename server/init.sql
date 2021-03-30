@@ -40,7 +40,8 @@ CREATE TABLE Credit_cards (
   owned_by integer NOT NULL,
   expiry_date DATE NOT NULL,
   from_date DATE,
-  FOREIGN KEY (owned_by) REFERENCES Customers(cust_id)
+  FOREIGN KEY (owned_by) REFERENCES Customers(cust_id),
+  check (from_date < expiry_date)
   -- combined with Owns table (Key + Total Participation Constrainteger)
   -- SET TRIGGER: Every customer must own at least one credit card (when inserting new customer)
 );
@@ -48,8 +49,8 @@ CREATE TABLE Credit_cards (
 INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', 1, '2021-03-29', '2020-03-29');
 INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', 2, '2021-02-15', '2019-07-15');
 INSERT INTO Credit_cards VALUES('4628 4500 8593 8572', '678', 3, '2021-01-05', '2010-05-28');
-INSERT INTO Credit_cards VALUES('4628 4500 6969 6969', '901', 4, '2017-12-31', '2025-11-09');
-INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', 5, '2021-09-08', '2030-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 6969 6969', '901', 4, '2025-12-31', '2015-11-09');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', 5, '2030-09-08', '2021-02-10');
 
 -- checked
 CREATE TABLE Course_packages (
@@ -58,7 +59,8 @@ CREATE TABLE Course_packages (
   sale_end_date DATE NOT NULL,
   num_free_registrations integer,
   package_name text,
-  price FLOAT NOT NULL
+  price FLOAT NOT NULL,
+  check (sale_start_date <= sale_end_date)
 );
 
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-30', '2021-04-26', 10, 'Free Udemy Course', 69.99);
@@ -87,7 +89,8 @@ CREATE TABLE Employees (
   phone text,
   email text,
   join_date DATE,
-  depart_date DATE
+  depart_date DATE,
+  check (join_date <= depart_date)
   -- SET TRIGGER: Every Employee is either a Part_Time_Emp or Full_Time_Emp but not both
 );
 
@@ -195,7 +198,8 @@ CREATE TABLE Offerings (
   registration_deadline DATE,
   fees FLOAT,
   aid integer NOT NULL REFERENCES Administrators,
-  PRIMARY KEY(course_id, launch_date)
+  PRIMARY KEY(course_id, launch_date),
+  check((start_date <= end_date) and (launch_date <= start_date))
   -- Combined with Has table (WEAK ENTITIY OF COURSE)
   -- Combined with Handles table (Key + Total Participation Constrainteger)
   -- SET A TRIGGER: Every offering has at least 1 session
