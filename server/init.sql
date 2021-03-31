@@ -266,15 +266,15 @@ CREATE TABLE Redeems (
   redeem_date DATE,
   -- buy stuff
   buy_date DATE,
-  credit_card_number text,
+  cust_id INTEGER,
   package_id integer,
   -- session stuff
   sid integer,
   course_id integer,
   launch_date DATE,
   FOREIGN KEY (sid, course_id, launch_date)  REFERENCES Sessions,
-  FOREIGN KEY (buy_date, credit_card_number, package_id) REFERENCES Buys,
-  PRIMARY KEY (redeem_date, buy_date, credit_card_number, package_id, sid, course_id, launch_date)
+  FOREIGN KEY (buy_date, cust_id, package_id) REFERENCES Buys,
+  PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date)
 );
 
 -- checked
