@@ -84,7 +84,7 @@ CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
 DECLARE
   num_remaining_redemptions INTEGER;
 BEGIN
-  SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = package_id;
+  SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
   RETURN NEW;
 END;
