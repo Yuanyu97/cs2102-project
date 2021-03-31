@@ -67,3 +67,5 @@ INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) 
 
 INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 3, 1, 1, '2021-04-11');
 INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 2, 2, 2, '2022-08-04');
+
+INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (1, 1, CURRENT_DATE, 1);
