@@ -72,12 +72,12 @@ INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registratio
 -- checked (CHECK PRIMARY KEY!!)
 CREATE TABLE Buys (
   buy_date DATE,
-  credit_card_number text,
+  cust_id INTEGER,
   num_remaining_redemptions integer,
   package_id integer REFERENCES Course_packages,
-  FOREIGN KEY (credit_card_number) 
-    REFERENCES Credit_cards,
-  PRIMARY KEY (buy_date, credit_card_number, package_id)
+  FOREIGN KEY (cust_id) 
+    REFERENCES Customers,
+  PRIMARY KEY (buy_date, cust_id, package_id)
 );
 
 -- check (double confirm can null all)
