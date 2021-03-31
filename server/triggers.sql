@@ -16,8 +16,8 @@ CREATE OR REPLACE FUNCTION after_insert_update_conducts() RETURNS TRIGGER AS $$
 DECLARE
     capacity INTEGER;
 BEGIN
-    SELECT SUM(seating_capacity) INTO capacity FROM Conducts WHERE Conducts.course_id = OLD.course_id and Conducts.launch_date = OLD.launch_date;
-    UPDATE Offerings SET seating_capacity = capacity WHERE Offerings.course_id = OLD.course_id and Offerings.launch_date = OLD.launch_date;
+    SELECT SUM(seating_capacity) INTO capacity FROM Conducts WHERE Conducts.course_id = NEW.course_id and Conducts.launch_date = NEW.launch_date;
+    UPDATE Offerings SET seating_capacity = capacity WHERE Offerings.course_id = NEW.course_id and Offerings.launch_date = NEW.launch_date;
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -25,18 +25,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER after_insert_update_conducts_trigger
 AFTER INSERT OR UPDATE ON Conducts
 FOR EACH ROW EXECUTE FUNCTION after_insert_update_conducts();
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
