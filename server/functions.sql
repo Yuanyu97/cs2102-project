@@ -1,3 +1,74 @@
+CREATE OR REPLACE PROCEDURE add_employee (
+    emp_name TEXT,
+    emp_home_address TEXT,
+    emp_contact_number TEXT,
+    emp_email_address TEXT,
+    emp_join_date DATE,
+    emp_category TEXT,
+    emp_monthly_salary NUMERIC DEFAULT NULL,
+    emp_hourly_rate NUMERIC DEFAULT NULL,
+    emp_course_areas TEXT[] DEFAULT '{}'
+) AS $$
+DECLARE
+    emp_id INTEGER;
+    emp_course_area TEXT;
+BEGIN
+    IF (emp_category = 'administrator' AND array_length(emp_course_areas, 1) > 0) THEN
+        RAISE EXCEPTION 'administrator should not have any course areas';
+    END IF;
+
+    IF (emp_monthly_salary IS NULL AND emp_hourly_rate IS NULL) THEN
+        RAISE EXCEPTION 'hourly rate and monthly salary cannot be both NULL';
+    END IF;
+
+    IF (emp_monthly_salary IS NOT NULL AND emp_hourly_rate IS NOT NULL) THEN
+        RAISE EXCEPTION 'hourly rate and monthly salary cannot be both NOT NULL';
+    END IF;
+
+    -- full time emp
+    IF (emp_monthly_salary IS NOT NULL) THEN 
+        IF (emp_category = 'manager') THEN
+            INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address, 
+            emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
+            INSERT INTO Full_Time_Emp(eid, monthly_salary) VALUES(emp_id, emp_monthly_salary);
+            INSERT INTO Managers(mid) VALUES(emp_id);
+            FOREACH emp_course_area IN ARRAY emp_course_areas 
+            LOOP
+                INSERT INTO Course_areas(area_name, mid) VALUES(emp_course_area, emp_id);
+            END LOOP;
+        ELSIF (emp_category = 'administrator') THEN
+            INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
+            emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
+            INSERT INTO Full_Time_Emp(eid, monthly_salary) VALUES(emp_id, emp_monthly_salary);
+            INSERT INTO Administrators(aid) VALUES(emp_id);
+        ELSIF (emp_category = 'instructor') THEN 
+            INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
+            emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
+            INSERT INTO Full_Time_Emp(eid, monthly_salary) VALUES(emp_id, emp_monthly_salary);
+            FOREACH emp_course_area in ARRAY emp_course_areas
+            LOOP
+                INSERT INTO Full_Time_Instructor(ftid, area_name) VALUES(emp_id, emp_course_area);
+            END LOOP;
+        END IF;
+    -- part time emp
+    ELSE 
+        IF (emp_category = 'manager') THEN
+            RAISE EXCEPTION 'a manager is not a part time employee';
+        ELSIF (emp_category = 'administrator') THEN
+            RAISE EXCEPTION 'an administrator is not a part time employee';
+        ELSE 
+            INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
+            emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
+            INSERT INTO Part_Time_Emp(eid, hourly_rate) VALUES(emp_id, emp_hourly_rate);
+            FOREACH emp_course_area in ARRAY emp_course_areas
+            LOOP
+                INSERT INTO Part_Time_Instructor(ftid, area_name) VALUES(emp_id, emp_course_area);
+            END LOOP;
+        END IF;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
