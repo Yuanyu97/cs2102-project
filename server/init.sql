@@ -139,6 +139,7 @@ CREATE TABLE Courses (
 
 -- checked
 CREATE TABLE Offerings (
+  offering_id SERIAL UNIQUE NOT NULL,
   course_id integer REFERENCES Courses ON DELETE CASCADE,
   launch_date DATE,
   start_date DATE,
