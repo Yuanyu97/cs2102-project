@@ -235,6 +235,7 @@ CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   course_id integer,
   launch_date DATE,
   rid integer NOT NULL REFERENCES Rooms,
+  seating_capacity integer,
   iid integer NOT NULL REFERENCES Instructors,
   PRIMARY KEY(sid, course_id, launch_date),
   FOREIGN KEY (course_id, launch_date) references Offerings
@@ -242,6 +243,20 @@ CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   -- Combined with Consists table (WEAK ENTITIY OF OFFERING)
   -- Combined with Conducts table (Key + Total Participation Constrainteger)
 );
+
+CREATE OR REPLACE FUNCTION before_insert_sessions() RETURNS TRIGGER AS $$
+DECLARE
+  capacity INTEGER;
+BEGIN
+  SELECT Rooms.seating_capacity INTO capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
+  NEW.seating_capacity = capacity;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER sessions_trigger
+BEFORE INSERT ON Sessions
+FOR EACH ROW EXECUTE FUNCTION before_insert_sessions();
 
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid, iid) VALUES('2020-05-07', 4, 5, 1, '2020-04-04', 1, 3);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid, iid) VALUES('2020-11-23', 9, 11, 2, '2019-04-04', 3, 4);
