@@ -24,7 +24,7 @@ CREATE TABLE Credit_cards (
 -- checked
 CREATE TABLE Customers (
   cust_id SERIAL PRIMARY KEY,
-  credit_card_number TEXT NOT NULL,
+  credit_card_number TEXT NOT NULL UNIQUE,
   name text NOT NULL,
   address text,
   email text,
@@ -39,7 +39,7 @@ CREATE TABLE Course_packages (
   sale_end_date DATE NOT NULL,
   num_free_registrations integer,
   package_name text,
-  price FLOAT NOT NULL,
+  price NUMERIC NOT NULL,
   check (sale_start_date <= sale_end_date)
 );
 
@@ -146,7 +146,7 @@ CREATE TABLE Offerings (
   target_number_registrations integer,
   seating_capacity integer,
   registration_deadline DATE,
-  fees FLOAT,
+  fees NUMERIC,
   aid integer NOT NULL REFERENCES Administrators,
   PRIMARY KEY(course_id, launch_date),
   check((start_date <= end_date) and (launch_date <= start_date) and (registration_deadline >= launch_date))
@@ -179,7 +179,6 @@ CREATE TABLE Conducts (
   iid INTEGER,
   area_name TEXT,
   rid INTEGER NOT NULL,
-  seating_capacity INTEGER,
   sid INTEGER,
   course_id INTEGER,
   launch_date DATE,
@@ -187,7 +186,7 @@ CREATE TABLE Conducts (
   FOREIGN KEY (rid) REFERENCES Rooms,
   FOREIGN KEY (sid, course_id) REFERENCES Sessions,
   FOREIGN KEY (course_id, launch_date) REFERENCES Offerings,
-  PRIMARY KEY (iid, area_name, rid, seating_capacity, sid, course_id)
+  PRIMARY KEY (iid, area_name, rid, sid, course_id)
 );
 
 -- checked (what is package_credit??)
@@ -196,7 +195,7 @@ CREATE TABLE Cancels (
   cust_id integer REFERENCES Customers,
   sid integer,
   course_id integer,
-  refund_amt FLOAT,
+  refund_amt NUMERIC,
   package_credit integer,
   PRIMARY KEY(cancel_date, cust_id, sid, course_id),
   FOREIGN KEY (sid, course_id) references Sessions
@@ -237,7 +236,7 @@ CREATE TABLE Pay_slips_for (
   payment_date DATE,
   num_work_hours integer,
   num_work_days integer,
-  amount FLOAT,
+  amount NUMERIC,
   PRIMARY KEY (eid, payment_date)
 );
 
