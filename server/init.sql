@@ -63,7 +63,7 @@ CREATE TABLE Employees (
   phone text,
   email text,
   join_date DATE,
-  depart_date DATE,
+  depart_date DATE DEFAULT NULL,
   check (join_date <= depart_date)
   -- SET TRIGGER: Every Employee is either a Part_Time_Emp or Full_Time_Emp but not both
 );
