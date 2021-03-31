@@ -9,4 +9,8 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/1-init.sql
+      - ./triggers.sql:/docker-entrypoint-initdb.d/2-triggers.sql
+      - ./input.sql:/docker-entrypoint-initdb.d/3-input.sql
+      - ./functions.sql:/docker-entrypoint-initdb.d/4-functions.sql
+      
