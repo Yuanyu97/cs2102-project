@@ -78,6 +78,7 @@ CREATE TABLE Buys (
   FOREIGN KEY (cust_id) 
     REFERENCES Customers,
   PRIMARY KEY (buy_date, cust_id, package_id)
+  -- TRIGGER NEEDED: num_remaining redemptions to be equal to Course_package num_free_registrations initially
 );
 
 -- check (double confirm can null all)
@@ -298,8 +299,4 @@ CREATE TABLE Specializes (
 INSERT INTO Specializes VALUES('Java', 3);
 INSERT INTO Specializes VALUES('Python', 5);
 
-/**
-  - Check how auto generate all ID for all tables
-  - If Owns merge into Credit_cards, Buys / Registers / Redeems how reference properly?
-**/
 
