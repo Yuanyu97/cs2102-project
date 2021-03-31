@@ -1,22 +1,22 @@
-CREATE OR REPLACE FUNCTION before_insert_conducts() RETURNS TRIGGER AS $$
-DECLARE
-    capacity INTEGER;
-BEGIN
-    SELECT seating_capacity into capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
-    NEW.seating_capacity = capacity;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- CREATE OR REPLACE FUNCTION before_insert_conducts() RETURNS TRIGGER AS $$
+-- DECLARE
+--     capacity INTEGER;
+-- BEGIN
+--     SELECT seating_capacity into capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
+--     NEW.seating_capacity = capacity;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER before_insert_conducts_trigger
-BEFORE INSERT ON Conducts
-FOR EACH ROW EXECUTE FUNCTION before_insert_conducts();
+-- CREATE TRIGGER before_insert_conducts_trigger
+-- BEFORE INSERT ON Conducts
+-- FOR EACH ROW EXECUTE FUNCTION before_insert_conducts();
 
 CREATE OR REPLACE FUNCTION after_insert_update_conducts() RETURNS TRIGGER AS $$
 DECLARE
     capacity INTEGER;
 BEGIN
-    SELECT SUM(seating_capacity) INTO capacity FROM Conducts WHERE Conducts.course_id = NEW.course_id and Conducts.launch_date = NEW.launch_date;
+    SELECT SUM(seating_capacity) INTO capacity FROM Conducts INNER JOIN Rooms ON NEW.rid = Rooms.rid WHERE Conducts.course_id = NEW.course_id and Conducts.launch_date = NEW.launch_date;
     UPDATE Offerings SET seating_capacity = capacity WHERE Offerings.course_id = NEW.course_id and Offerings.launch_date = NEW.launch_date;
     RETURN NULL;
 END;
