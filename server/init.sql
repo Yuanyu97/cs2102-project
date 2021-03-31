@@ -78,8 +78,21 @@ CREATE TABLE Buys (
   FOREIGN KEY (cust_id) 
     REFERENCES Customers,
   PRIMARY KEY (buy_date, cust_id, package_id)
-  -- TRIGGER NEEDED: num_remaining redemptions to be equal to Course_package num_free_registrations initially
 );
+
+CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
+DECLARE
+  num_remaining_redemptions INTEGER;
+BEGIN
+  SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = package_id;
+  NEW.num_remaining_redemptions = num_remaining_redemptions;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER buys_trigger
+BEFORE INSERT ON Buys
+FOR EACH ROW EXECUTE FUNCTION before_insert_buys();
 
 -- check (double confirm can null all)
 -- soft delete by adding depart_date
