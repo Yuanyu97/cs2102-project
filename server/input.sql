@@ -59,11 +59,11 @@ INSERT INTO Instructors VALUES(3, 'R');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 30, 'Java for beginners', 'Java');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 15, 'Python for newbies', 'Python');
 
-INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2020-04-04', '2020-05-05', '2020-06-30', 60, '2020-04-10', 99.99, 3);
-INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2019-04-04', '2019-05-05', '2019-06-30', 100, '2019-04-10', 59.99, 4);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', '2021-05-05', '2021-06-30', 60, '2021-04-10', 99.99, 3);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-08-04', '2022-08-05', '2022-09-30', 100, '2022-08-03', 59.99, 4);
 
-INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-07', 4, 5, 1, '2020-04-04', 1);
-INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2019-04-04', 3);
+INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-07', 4, 5, 1, '2021-04-11', 1);
+INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2022-08-04', 3);
 
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 3, 1, 1, '2020-04-04');
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 2, 2, 2, '2019-04-04');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 3, 1, 1, '2021-04-11');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 2, 2, 2, '2022-08-04');

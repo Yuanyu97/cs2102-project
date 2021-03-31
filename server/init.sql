@@ -149,7 +149,7 @@ CREATE TABLE Offerings (
   fees NUMERIC,
   aid integer NOT NULL REFERENCES Administrators,
   PRIMARY KEY(course_id, launch_date),
-  check((start_date <= end_date) and (launch_date <= start_date) and (registration_deadline >= launch_date))
+  check((start_date <= end_date) and (launch_date <= start_date) and (registration_deadline <= launch_date))
   -- Combined with Has table (WEAK ENTITIY OF COURSE)
   -- Combined with Handles table (Key + Total Participation Constrainteger)
   -- SET A TRIGGER: Every offering has at least 1 session
