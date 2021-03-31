@@ -8,6 +8,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER conducts_trigger
+BEFORE INSERT ON Conducts
+FOR EACH ROW EXECUTE FUNCTION before_insert_conducts();
+
 CREATE OR REPLACE FUNCTION before_insert_offerings() RETURNS TRIGGER AS $$
 DECLARE
   capacity INTEGER;
