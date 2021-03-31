@@ -65,5 +65,5 @@ INSERT INTO Offerings VALUES (2, '2019-04-04', '2019-05-05', '2019-06-30', 100, 
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-07', 4, 5, 1, '2020-04-04', 1);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2019-04-04', 3);
 
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id) VALUES (4, 'Java', 3, 1, 1);
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id) VALUES (3, 'Python', 2, 2, 2);
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 3, 1, 1, '2020-04-04');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 2, 2, 2, '2019-04-04');
