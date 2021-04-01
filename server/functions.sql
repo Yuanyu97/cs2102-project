@@ -69,6 +69,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE remove_employee (
+    emp_id INTEGER,
+    emp_depart_date DATE
+) AS $$
+    WITH SessionsAndInstructors AS (
+        SELECT iid , s_date FROM Sessions S INNER JOIN (
+            SELECT iid, sid FROM Conducts
+        ) AS C ON C.sid = S.sid
+    )
+    UPDATE Employees 
+    SET depart_date = emp_depart_date
+    WHERE eid = emp_id AND emp_id NOT IN (
+        SELECT DISTINCT mid FROM Course_areas
+        WHERE mid = emp_id
+        UNION
+        SELECT DISTINCT iid FROM SessionsAndInstructors
+        WHERE s_date > emp_depart_date
+        AND iid = emp_id
+        UNION 
+        SELECT DISTINCT aid FROM Offerings
+        WHERE registration_deadline > emp_depart_date
+        AND aid = emp_id
+    );
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
