@@ -127,3 +127,37 @@ FROM offerings_join_courses LEFT JOIN num_registrations_for_each_session
 ON offerings_join_courses.course_id = num_registrations_for_each_session.course_id AND offerings_join_courses.launch_date = num_registrations_for_each_session.launch_date
 WHERE registration_deadline >= CURRENT_DATE;
 $$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION get_available_course_sessions(_offering_id INTEGER)
+RETURNS TABLE (
+session_date DATE,
+start_hour INTEGER,
+instructor_name TEXT,
+remaining_seats INTEGER) AS $$
+DECLARE
+	c_id INTEGER;
+	l_date DATE;
+BEGIN
+	SELECT course_id, launch_date INTO c_id, l_date
+	FROM Offerings
+	WHERE Offerings.offering_id = _offering_id;
+	RETURN QUERY
+	with instructor_name_mapping AS (
+		SELECT DISTINCT Instructors.iid, Employees.name
+		FROM Instructors LEFT JOIN Employees ON Instructors.iid = Employees.eid
+	),
+	sessions_instructors_table AS (
+		SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, Sessions.start_time, Sessions.s_date
+		FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid LEFT JOIN Sessions ON Conducts.sid = Sessions.sid AND Sessions.course_id = Conducts.course_id
+		WHERE Conducts.course_id = c_id AND Conducts.launch_date = l_date
+	),
+	num_registrations_for_each_session as (
+		SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.sid
+		FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid
+		GROUP BY Sessions.course_id, Sessions.sid
+	)
+	SELECT sessions_instructors_table.s_date as session_date, sessions_instructors_table.start_time as start_hour, sessions_instructors_table.name as instructor_name, (sessions_instructors_table.seating_capacity - num_registrations)::int as remaining_seat
+	FROM sessions_instructors_table LEFT JOIN num_registrations_for_each_session ON sessions_instructors_table.course_id = num_registrations_for_each_session.course_id AND sessions_instructors_table.sid = num_registrations_for_each_session.sid
+	ORDER BY sessions_instructors_table.s_date, sessions_instructors_table.start_time;
+	END;
+$$ LANGUAGE plpgsql;
