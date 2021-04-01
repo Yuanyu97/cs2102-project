@@ -63,10 +63,13 @@ INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_numbe
 INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-08-04', '2022-08-05', '2022-09-30', 100, '2022-08-03', 59.99, 4);
 
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-07', 4, 5, 1, '2021-04-11', 1);
+INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-08', 10, 11, 1, '2021-04-11', 4);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2022-08-04', 3);
 
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 3, 1, 1, '2021-04-11');
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 2, 2, 2, '2022-08-04');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 1, 1, 1, '2021-04-11');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 4, 2, 1, '2021-04-11');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 3, 3, 2, '2022-08-04');
 
 INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (1, 1, CURRENT_DATE, 1);
-INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (2, 2, CURRENT_DATE, 4);
+INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (2, 1, CURRENT_DATE, 2);
+INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (3, 2, CURRENT_DATE, 4);
