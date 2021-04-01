@@ -56,3 +56,20 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER buys_trigger
 BEFORE INSERT ON Buys
 FOR EACH ROW EXECUTE FUNCTION before_insert_buys();
+
+CREATE OR REPLACE FUNCTION before_insert_offering() RETURNS TRIGGER AS $$
+DECLARE
+  days_diff INTEGER;
+BEGIN
+  SELECT (NEW.start_date- NEW.registration_deadline) INTO days_diff;
+  IF (days_diff >= 10) THEN
+    RETURN NEW;
+  ELSE
+    RAISE EXCEPTION 'registration deadline for a course offering must be at least 10 days before its start date';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER offerings_trigger
+BEFORE INSERT ON Offerings
+FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
