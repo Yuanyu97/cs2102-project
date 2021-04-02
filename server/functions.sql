@@ -69,6 +69,76 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE remove_employee (
+    emp_id INTEGER,
+    emp_depart_date DATE
+) AS $$
+    WITH SessionsAndInstructors AS (
+        SELECT iid , s_date FROM Sessions S INNER JOIN (
+            SELECT iid, sid FROM Conducts
+        ) AS C ON C.sid = S.sid
+    )
+    UPDATE Employees 
+    SET depart_date = emp_depart_date
+    WHERE eid = emp_id AND emp_id NOT IN (
+        SELECT DISTINCT mid FROM Course_areas
+        WHERE mid = emp_id
+        UNION
+        SELECT DISTINCT iid FROM SessionsAndInstructors
+        WHERE s_date > emp_depart_date
+        AND iid = emp_id
+        UNION 
+        SELECT DISTINCT aid FROM Offerings
+        WHERE registration_deadline > emp_depart_date
+        AND aid = emp_id
+    );
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE PROCEDURE add_customer (
+    cname TEXT,
+    cust_home_address TEXT,
+    cust_contact_number TEXT,
+    cust_email_address TEXT,
+    cust_credit_card_number TEXT,
+    cust_credit_card_expiry_date DATE,
+    cust_credit_card_cvv CHAR(3)
+) AS $$
+BEGIN
+    INSERT INTO Credit_cards(credit_card_number, cvv, expiry_date, from_date) VALUES(cust_credit_card_number,
+    cust_credit_card_cvv, cust_credit_card_expiry_date, CURRENT_DATE);
+    INSERT INTO Customers(credit_card_number, name, address, email, phone) VALUES(cust_credit_card_number,
+     cname, cust_home_address, cust_email_address, cust_contact_number);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE update_credit_card (
+    cid INTEGER,
+    new_credit_card_number TEXT,
+    new_credit_card_expiry_date DATE,
+    new_credit_card_cvv CHAR(3)
+) AS $$
+DECLARE 
+    old_credit_card_number TEXT;
+BEGIN
+    SELECT credit_card_number INTO old_credit_card_number FROM Customers WHERE cid = cust_id;
+    UPDATE Credit_cards
+    SET credit_card_number = new_credit_card_number,
+        cvv = new_credit_card_cvv,
+        expiry_date = new_credit_card_expiry_date
+    WHERE credit_card_number = old_credit_card_number;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE add_course (
+    course_title TEXT,
+    course_description TEXT,
+    course_area_name TEXT,
+    course_duration INTEGER
+) AS $$
+    INSERT INTO Courses(title, duration, description, area_name) VALUES(course_title, course_duration,
+    course_description, course_area_name);
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
