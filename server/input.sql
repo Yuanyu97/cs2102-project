@@ -111,20 +111,23 @@ insert into Employees (name, address, phone, email, join_date, depart_date) valu
 insert into Employees (name, address, phone, email, join_date, depart_date) values ('Mattie Blanchard', '8324 Arrowood Park', '4605981130', 'mblanchards@clickbank.net', '2021-01-25', '2022-01-22');
 
 
-INSERT INTO Part_Time_Emp VALUES(4, 80);
-INSERT INTO Part_Time_Emp VALUES(5, 100);
+INSERT INTO Part_Time_Emp VALUES(5, 80);
+INSERT INTO Part_Time_Emp VALUES(6, 100);
 
 INSERT INTO Full_Time_Emp VALUES(1, 6000);
 INSERT INTO Full_Time_Emp VALUES(2, 5050);
 INSERT INTO Full_Time_Emp VALUES(3, 10000);
+INSERT INTO Full_Time_Emp VALUES(4, 10000);
 
+INSERT INTO Managers VALUES(1);
+INSERT INTO Managers VALUES(2);
 -- INSERT INTO Managers VALUES(3);
 -- INSERT INTO Managers VALUES(4);
 -- INSERT INTO Managers VALUES(5);
-INSERT INTO Administrators VALUES(1);
-INSERT INTO Managers VALUES(2);
--- INSERT INTO Administrators VALUES(3);
--- INSERT INTO Administrators VALUES(4);
+
+-- INSERT INTO Administrators VALUES(1);
+INSERT INTO Administrators VALUES(3);
+INSERT INTO Administrators VALUES(4);
 -- INSERT INTO Administrators VALUES(5);
 
 INSERT INTO Course_areas VALUES('Java', 2);
