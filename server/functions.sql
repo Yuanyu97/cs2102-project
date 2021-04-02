@@ -129,6 +129,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE add_course (
+    course_title TEXT,
+    course_description TEXT,
+    course_area_name TEXT,
+    course_duration INTEGER
+) AS $$
+    INSERT INTO Courses(title, duration, description, area_name) VALUES(course_title, course_duration,
+    course_description, course_area_name);
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
