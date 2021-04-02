@@ -111,6 +111,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE update_credit_card (
+    cid INTEGER,
+    new_credit_card_number TEXT,
+    new_credit_card_expiry_date DATE,
+    new_credit_card_cvv CHAR(3)
+) AS $$
+DECLARE 
+    old_credit_card_number TEXT;
+BEGIN
+    SELECT credit_card_number INTO old_credit_card_number FROM Customers WHERE cid = cust_id;
+    UPDATE Credit_cards
+    SET credit_card_number = new_credit_card_number,
+        cvv = new_credit_card_cvv,
+        expiry_date = new_credit_card_expiry_date
+    WHERE credit_card_number = old_credit_card_number;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,

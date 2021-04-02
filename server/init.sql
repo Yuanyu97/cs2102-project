@@ -29,7 +29,7 @@ CREATE TABLE Customers (
   address text,
   email text,
   phone text,
-  FOREIGN KEY (credit_card_number) references Credit_cards
+  FOREIGN KEY (credit_card_number) references Credit_cards ON UPDATE CASCADE
 );
 
 -- checked
