@@ -111,20 +111,23 @@ insert into Employees (name, address, phone, email, join_date, depart_date) valu
 insert into Employees (name, address, phone, email, join_date, depart_date) values ('Mattie Blanchard', '8324 Arrowood Park', '4605981130', 'mblanchards@clickbank.net', '2021-01-25', '2022-01-22');
 
 
-INSERT INTO Part_Time_Emp VALUES(4, 80);
-INSERT INTO Part_Time_Emp VALUES(5, 100);
+INSERT INTO Part_Time_Emp VALUES(5, 80);
+INSERT INTO Part_Time_Emp VALUES(6, 100);
 
 INSERT INTO Full_Time_Emp VALUES(1, 6000);
 INSERT INTO Full_Time_Emp VALUES(2, 5050);
 INSERT INTO Full_Time_Emp VALUES(3, 10000);
+INSERT INTO Full_Time_Emp VALUES(4, 10000);
 
+INSERT INTO Managers VALUES(1);
+INSERT INTO Managers VALUES(2);
 -- INSERT INTO Managers VALUES(3);
 -- INSERT INTO Managers VALUES(4);
 -- INSERT INTO Managers VALUES(5);
-INSERT INTO Administrators VALUES(1);
-INSERT INTO Managers VALUES(2);
--- INSERT INTO Administrators VALUES(3);
--- INSERT INTO Administrators VALUES(4);
+
+-- INSERT INTO Administrators VALUES(1);
+INSERT INTO Administrators VALUES(3);
+INSERT INTO Administrators VALUES(4);
 -- INSERT INTO Administrators VALUES(5);
 
 INSERT INTO Course_areas VALUES('Java', 2);
@@ -142,16 +145,16 @@ INSERT INTO Instructors VALUES(3, 'R');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 30, 'Java for beginners', 'Java');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 15, 'Python for newbies', 'Python');
 
-INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', '2021-05-05', '2021-06-30', 60, '2021-04-10', 99.99, 1);
-INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-08-04', '2022-08-05', '2022-09-30', 100, '2022-08-03', 59.99, 1);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', '2021-05-05', '2021-06-30', 60, '2021-04-25', 99.99, 3);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', '2022-08-05', '2022-09-30', 100, '2022-07-20', 59.99, 4);
 
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-07', 4, 5, 1, '2021-04-11', 1);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-05-08', 10, 11, 1, '2021-04-11', 4);
-INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2022-08-04', 3);
+INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2020-11-23', 9, 11, 2, '2022-07-10', 3);
 
 INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 1, 1, 1, '2021-04-11');
 INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (4, 'Java', 4, 2, 1, '2021-04-11');
-INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 3, 3, 2, '2022-08-04');
+INSERT INTO Conducts(iid, area_name, rid, sid, course_id, launch_date) VALUES (3, 'Python', 3, 3, 2, '2022-07-10');
 
 INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (1, 1, CURRENT_DATE, 1);
 INSERT INTO Registers(sid, course_id, registration_date, cust_id) VALUES (2, 1, CURRENT_DATE, 2);
