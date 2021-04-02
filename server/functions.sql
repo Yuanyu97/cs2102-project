@@ -74,9 +74,7 @@ CREATE OR REPLACE PROCEDURE remove_employee (
     emp_depart_date DATE
 ) AS $$
     WITH SessionsAndInstructors AS (
-        SELECT iid , s_date FROM Sessions S INNER JOIN (
-            SELECT iid, sid FROM Conducts
-        ) AS C ON C.sid = S.sid
+        SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id
     )
     UPDATE Employees 
     SET depart_date = emp_depart_date
@@ -138,6 +136,95 @@ CREATE OR REPLACE PROCEDURE add_course (
     INSERT INTO Courses(title, duration, description, area_name) VALUES(course_title, course_duration,
     course_description, course_area_name);
 $$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION find_instructors (
+    cid INTEGER,
+    session_start_date DATE,
+    session_start_hour INTEGER
+) RETURNS TABLE(inst_id INTEGER, inst_name TEXT) AS $$
+DECLARE 
+    session_end_hour INTEGER;
+    course_duration INTEGER;
+    num_sessions_offered INTEGER;
+    session_duration INTEGER;
+    offering_launch_date DATE;
+    r RECORD;
+BEGIN
+    -- how to get session duration?
+    -- course duration / number of sessions in offering
+    -- how to get course duration? Course.duration
+    -- how to get number of sessions in offering? given: cid, session_start_date
+    -- find session launch date in Sessions
+    -- use Sessions - group by course_id and launch_date 
+    -- Count rows
+    SELECT launch_date INTO offering_launch_date FROM Sessions
+    WHERE course_id = cid AND s_date = session_start_date AND start_time = session_start_hour
+    LIMIT 1;
+
+    SELECT duration INTO course_duration FROM Courses WHERE course_id = cid;
+
+    SELECT COUNT(*) INTO num_sessions_offered FROM Sessions
+    WHERE course_id = cid AND launch_date = offering_launch_date;
+
+    session_duration := course_duration / num_sessions_offered;
+
+    session_end_hour := session_start_hour + session_duration;
+
+    RETURN QUERY
+    WITH SpecializingInstructors AS (
+        SELECT DISTINCT ftid AS iid
+        FROM Full_Time_Instructor FT
+        WHERE EXISTS (
+            SELECT 1
+            FROM Courses C
+            WHERE C.course_id = cid AND C.area_name = FT.area_name
+        )
+        UNION
+        SELECT DISTINCT ptid AS iid
+        FROM Part_Time_Instructor PT
+        WHERE EXISTS (
+            SELECT 1
+            FROM Courses C
+            WHERE C.course_id = cid AND C.area_name = PT.area_name
+        )
+        UNION
+        SELECT DISTINCT iid
+        FROM Instructors I
+        WHERE EXISTS (
+            SELECT 1
+            FROM Courses C
+            WHERE C.course_id = cid AND C.area_name = I.area_name
+        )
+    ),
+    MaxHoursQuotaReachedInstructors AS (
+        SELECT DISTINCT iid 
+        FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
+        GROUP BY iid 
+        HAVING SUM(end_time - start_time) >= 30
+        EXCEPT
+        SELECT ftid
+        FROM Full_Time_Instructor
+    ),
+    -- must course_id same as cid?
+    -- no, the instructor just has to specialize in that area
+    TimeNotAvailableInstructors AS (
+        SELECT DISTINCT iid
+        FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
+        WHERE session_start_date = s_date AND NOT (session_start_hour > end_time OR session_end_hour < start_time)
+    ),
+    AvailableInstructors AS (
+        SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM MaxHoursQuotaReachedInstructors EXCEPT 
+        SELECT iid FROM TimeNotAvailableInstructors
+    )
+    SELECT eid, name 
+    FROM AvailableInstructors INNER JOIN Employees ON iid = eid;
+    -- LOOP
+    --     inst_id := r.eid;
+    --     inst_name := r.name;
+    --     RETURN NEXT;
+    -- END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
