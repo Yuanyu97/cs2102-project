@@ -94,6 +94,23 @@ CREATE OR REPLACE PROCEDURE remove_employee (
     );
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE PROCEDURE add_customer (
+    cname TEXT,
+    cust_home_address TEXT,
+    cust_contact_number TEXT,
+    cust_email_address TEXT,
+    cust_credit_card_number TEXT,
+    cust_credit_card_expiry_date DATE,
+    cust_credit_card_cvv CHAR(3)
+) AS $$
+BEGIN
+    INSERT INTO Credit_cards(credit_card_number, cvv, expiry_date, from_date) VALUES(cust_credit_card_number,
+    cust_credit_card_cvv, cust_credit_card_expiry_date, CURRENT_DATE);
+    INSERT INTO Customers(credit_card_number, name, address, email, phone) VALUES(cust_credit_card_number,
+     cname, cust_home_address, cust_email_address, cust_contact_number);
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
