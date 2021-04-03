@@ -182,11 +182,10 @@ CREATE TABLE Conducts (
   rid INTEGER NOT NULL,
   sid INTEGER,
   course_id INTEGER,
-  launch_date DATE,
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
-  FOREIGN KEY (sid, course_id) REFERENCES Sessions,
-  FOREIGN KEY (course_id, launch_date) REFERENCES Offerings,
+  FOREIGN KEY (sid, course_id) REFERENCES Sessions
+    ON DELETE CASCADE,
   PRIMARY KEY (iid, area_name, rid, sid, course_id)
 );
 
