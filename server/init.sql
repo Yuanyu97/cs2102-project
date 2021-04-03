@@ -1,7 +1,7 @@
 drop table if exists Rooms, Customers, Credit_cards, Course_packages, Buys,
  Employees, Part_Time_Emp, Full_Time_Emp, Instructors, Part_Time_Instructor,
  Full_Time_Instructor, Managers, Administrators, Course_areas, Courses, Offerings,
- Sessions, Cancels, Registers, Redeems, Pay_slips_for, Specializes cascade; 
+ Sessions, Cancels, Registers, Redeems, Pay_slips_for cascade; 
 
 -- checked
 CREATE TABLE Rooms (
@@ -144,8 +144,8 @@ CREATE TABLE Offerings (
   launch_date DATE,
   start_date DATE,
   end_date DATE,
-  target_number_registrations integer,
-  seating_capacity integer,
+  target_number_registrations integer DEFAULT 0,
+  seating_capacity integer DEFAULT 0,
   registration_deadline DATE,
   fees NUMERIC,
   aid integer NOT NULL REFERENCES Administrators,
