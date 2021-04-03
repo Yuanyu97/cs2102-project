@@ -159,7 +159,7 @@ CREATE TABLE Offerings (
 
 -- checked SUSS day, hour spoil. ER no good
 CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
-  sid serial,
+  sid INTEGER,
   s_date DATE,
   -- integer for start hours only 9,10,11,14,15,16,17
   start_time integer,
