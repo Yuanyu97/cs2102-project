@@ -143,13 +143,13 @@ INSERT INTO Instructors VALUES(5, 'C++');
 INSERT INTO Instructors VALUES(3, 'R');
 
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 2, 'Java for beginners', 'Java');
-INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 15, 'Python for newbies', 'Python');
-INSERT INTO Courses(title, duration, description, area_name) VALUES('Data Structures and Algorithms', 2, 'CS2040S', 'Java');
+INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');
+INSERT INTO Courses(title, duration, description, area_name) VALUES('Data Structures and Algorithms', 1, 'CS2040S', 'Java');
 
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', 60, '2021-04-25', 99.99, 3);
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', 100, '2022-07-20', 59.99, 4);
 
-INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2021-05-05', 4, 5, 1, '2021-04-11', 1);
+INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2021-05-05', 14, 15, 1, '2021-04-11', 1);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2021-05-08', 10, 11, 1, '2021-04-11', 4);
 INSERT INTO Sessions(s_date, start_time, end_time, course_id, launch_date, rid) VALUES('2022-08-05', 9, 11, 2, '2022-07-10', 3);
 
