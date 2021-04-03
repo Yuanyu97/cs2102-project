@@ -343,7 +343,7 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE PROCEDURE add_course_offering(
-	offering_id INTEGER,
+	offer_id INTEGER,
 	c_id INTEGER,
 	c_fees NUMERIC,
 	l_Date DATE,
@@ -356,15 +356,42 @@ DECLARE
 	seating_capacity INTEGER = 0;
 	temp_seating_capacity INTEGER;
 	i session_array;
+    instructor_id INTEGER;
+    num_sessions INTEGER = 0;
+    c_duration INTEGER;
+    s_duration INTEGER;
+    r_id INTEGER;
+    c_area TEXT;
+    sess_id INTEGER;
 BEGIN
-	FOREACH i IN ARRAY arr
+	FOREACH i IN ARRAY arr --finding num_sess and total seating capacity
 	LOOP
 		SELECT Rooms.seating_capacity INTO temp_seating_capacity FROM Rooms WHERE i.rid = Rooms.rid; 
 		seating_capacity := seating_capacity + temp_seating_capacity;
+        num_sessions := num_sessions + 1;
 	END LOOP;
 	IF (seating_capacity < target) THEN
 		RAISE EXCEPTION 'Total seating capacity % must be greater or equal to target num reg', seating_capacity;
 	END IF;
+    SELECT duration, area_name INTO c_duration, c_area FROM Courses WHERE Courses.course_id = c_id;
+    s_duration := CEILING(c_duration / num_sessions); --finding sess duration for each sess
+    INSERT INTO Offerings (course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (c_id, l_date, target, reg_deadline, c_fees, a_id);
+    FOREACH i IN ARRAY arr
+    LOOP --checking if each session can be assigned an instructor, or is the room available
+        INSERT INTO Sessions (s_date, start_time, end_time, course_id, launch_date, rid) VALUES(i.s_date, i.s_start, i.s_start + s_duration, c_id, l_date, i.rid);
+        SELECT COUNT(sid) INTO sess_id FROM Sessions;
+        SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
+        IF (instructor_id IS NULL) THEN
+            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
+            RAISE EXCEPTION 'No instructor available to teach session where session date is %, session time is %', i.s_date, i.s_start;
+        END IF;
+        INSERT INTO Conducts (iid, area_name, sid, course_id) VALUES (instructor_id, c_area, sess_id, c_id);
+        SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, s_duration) WHERE room_id = i.rid;
+        IF (r_id IS NULL) THEN
+            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
+            RAISE EXCEPTION 'Room % is not avaiable for session', i.rid;
+        END IF;
+    END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 -- seating capacity >= targer_num_reg
