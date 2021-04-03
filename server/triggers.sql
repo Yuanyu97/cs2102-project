@@ -1,47 +1,26 @@
--- CREATE OR REPLACE FUNCTION before_insert_conducts() RETURNS TRIGGER AS $$
--- DECLARE
---     capacity INTEGER;
--- BEGIN
---     SELECT seating_capacity into capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
---     NEW.seating_capacity = capacity;
---     RETURN NEW;
--- END;
--- $$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER before_insert_conducts_trigger
--- BEFORE INSERT ON Conducts
--- FOR EACH ROW EXECUTE FUNCTION before_insert_conducts();
-
-CREATE OR REPLACE FUNCTION after_insert_update_conducts() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION before_insert_update_conducts() RETURNS TRIGGER AS $$
 DECLARE
-    capacity INTEGER;
+    l_date DATE;
+    room_id INTEGER;
+    course_area TEXT;
 BEGIN
-    SELECT SUM(seating_capacity) INTO capacity FROM Conducts INNER JOIN Rooms ON NEW.rid = Rooms.rid WHERE Conducts.course_id = NEW.course_id and Conducts.launch_date = NEW.launch_date;
-    UPDATE Offerings SET seating_capacity = capacity WHERE Offerings.course_id = NEW.course_id and Offerings.launch_date = NEW.launch_date;
-    RETURN NULL;
+    SELECT Offerings.launch_date INTO l_date FROM Offerings NATURAL JOIN (SELECT course_id, launch_Date FROM Sessions WHERE Sessions.sid = NEW.sid AND Sessions.course_id = NEW.course_id) AS X;
+    SELECT area_name INTO course_area FROM Courses WHERE Courses.course_id = NEW.course_id;
+    SELECT rid INTO room_id FROM Sessions WHERE Sessions.sid = NEW.sid AND Sessions.course_id = NEW.course_id;
+    IF (course_area <> NEW.area_name) THEN
+      RAISE EXCEPTION 'Instructor specializing area not the same as session course area';
+    ELSE
+      NEW.launch_Date = l_date;
+      NEW.rid = room_id;
+      RETURN NEW;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER after_insert_update_conducts_trigger
-AFTER INSERT OR UPDATE ON Conducts
-FOR EACH ROW EXECUTE FUNCTION after_insert_update_conducts();
+CREATE TRIGGER before_insert_update_conducts_trigger
+BEFORE INSERT OR UPDATE ON Conducts
+FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts();
 
-
-
-
--- CREATE OR REPLACE FUNCTION before_insert_offerings() RETURNS TRIGGER AS $$
--- DECLARE
---   capacity INTEGER;
--- BEGIN
---   SELECT SUM(seating_capacity) INTO capacity FROM Conducts WHERE Conducts.course_id = NEW.course_id;
---   NEW.seating_capacity = capacity;
---   RETURN NEW;
--- END;
--- $$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER offerings_trigger
--- BEFORE INSERT ON Offerings
--- FOR EACH ROW EXECUTE FUNCTION before_insert_offerings();
 
 CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
 DECLARE
@@ -61,7 +40,7 @@ CREATE OR REPLACE FUNCTION before_insert_offering() RETURNS TRIGGER AS $$
 DECLARE
   days_diff INTEGER;
 BEGIN
-  SELECT (NEW.start_date- NEW.registration_deadline) INTO days_diff;
+  SELECT (NEW.start_date - OLD.registration_deadline) INTO days_diff;
   IF (days_diff >= 10) THEN
     RETURN NEW;
   ELSE
@@ -71,5 +50,31 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER offerings_trigger
-BEFORE INSERT ON Offerings
+BEFORE UPDATE ON Offerings
 FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
+
+
+CREATE OR REPLACE FUNCTION before_insert_session() RETURNS TRIGGER AS $$
+DECLARE
+  earliest_start_date DATE;
+  latest_start_date DATE;
+  s_capacity INTEGER;
+  old_capacity INTEGER;
+BEGIN
+  SELECT start_date, end_Date INTO earliest_start_date, latest_start_date FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  IF (NEW.s_date < earliest_start_date OR earliest_start_date IS NULL) THEN
+    UPDATE Offerings SET start_date = NEW.s_date WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  END IF;
+  IF (NEW.s_date > latest_start_date OR latest_start_date IS NULL) THEN
+    UPDATE Offerings SET end_date = NEW.s_date WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  END IF;
+  SELECT seating_capacity INTO s_capacity FROM Rooms WHERE NEW.rid = Rooms.rid;
+  SELECT seating_capacity INTO old_capacity FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  UPDATE Offerings SET seating_capacity = s_capacity + old_capacity WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_insert_session 
+BEFORE INSERT ON Sessions
+FOR EACH ROW EXECUTE FUNCTION before_insert_session();

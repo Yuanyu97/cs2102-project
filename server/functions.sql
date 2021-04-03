@@ -338,3 +338,32 @@ FROM sessions_instructors_table LEFT JOIN num_registrations_for_each_session ON 
 ORDER BY sessions_instructors_table.s_date, sessions_instructors_table.start_time;
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE PROCEDURE add_course_offering(
+	offering_id INTEGER,
+	c_id INTEGER,
+	c_fees NUMERIC,
+	l_Date DATE,
+	reg_deadline DATE,
+	target INTEGER,
+	a_id INTEGER,
+	arr session_array[]
+) AS $$
+DECLARE
+	seating_capacity INTEGER = 0;
+	temp_seating_capacity INTEGER;
+	i INTEGER;
+BEGIN
+	FOREACH i IN ARRAY session_array
+	LOOP
+		SELECT seating_capacity INTO temp_seating_capacity FROM Rooms WHERE session_array[i][2] = Rooms.rid; 
+		seating_capacity := seating_capacity + seating_capacity;
+	END LOOP;
+	IF (seating_capacity < target) THEN
+		RAISE EXCEPTION 'Total seating capacity must be greater or equal to target num reg';
+	END IF;
+END;
+$$ LANGUAGE plpgsql;
+-- seating capacity >= targer_num_reg
+-- use DEFAULT for offering_id
