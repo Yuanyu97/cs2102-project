@@ -169,7 +169,7 @@ CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   course_id integer,
   launch_date DATE,
   rid integer NOT NULL REFERENCES Rooms,
-  PRIMARY KEY(sid, course_id),
+  PRIMARY KEY(sid, course_id, launch_date),
   FOREIGN KEY (course_id, launch_date) REFERENCES Offerings(course_id, launch_date)
     ON DELETE CASCADE,
   check (((start_time IN (9, 10, 11) AND end_time IN (10, 11, 12)) OR (start_time IN (14, 15, 16, 17) AND end_time IN (15, 16, 17, 18))) 
@@ -184,9 +184,10 @@ CREATE TABLE Conducts (
   rid INTEGER NOT NULL,
   sid INTEGER,
   course_id INTEGER,
+  launch_date DATE,
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
-  FOREIGN KEY (sid, course_id) REFERENCES Sessions
+  FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions
     ON DELETE CASCADE,
   PRIMARY KEY (iid, area_name, rid, sid, course_id)
 );
@@ -196,23 +197,25 @@ CREATE TABLE Cancels (
   cancel_date DATE,
   cust_id integer REFERENCES Customers,
   sid integer,
+  launch_Date DATE,
   course_id integer,
   refund_amt NUMERIC,
   package_credit integer,
   PRIMARY KEY(cancel_date, cust_id, sid, course_id),
-  FOREIGN KEY (sid, course_id) references Sessions
+  FOREIGN KEY (sid, course_id, launch_Date) references Sessions
   -- Trigger: compute package_credit from Buys.num_remaining_redemptions
 );
 
 -- checked G
 CREATE TABLE Registers (
   sid integer,
+  launch_date DATE,
   course_id integer,
   registration_date DATE,
   cust_id INTEGER,
   PRIMARY KEY(registration_date, cust_id, sid, course_id),
   FOREIGN KEY (cust_id) REFERENCES Customers,
-  FOREIGN KEY (sid, course_id) references Sessions
+  FOREIGN KEY (sid, course_id, launch_date) references Sessions
 );
 
 -- checked
@@ -225,8 +228,9 @@ CREATE TABLE Redeems (
   package_id integer,
   -- session stuff
   sid integer,
+  launch_date DATE,
   course_id integer,
-  FOREIGN KEY (sid, course_id)  REFERENCES Sessions,
+  FOREIGN KEY (sid, course_id, launch_date)  REFERENCES Sessions,
   FOREIGN KEY (buy_date, cust_id, package_id) REFERENCES Buys,
   PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id)
 );
