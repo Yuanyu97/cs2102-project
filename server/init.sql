@@ -171,7 +171,9 @@ CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   rid integer NOT NULL REFERENCES Rooms,
   PRIMARY KEY(sid, course_id),
   FOREIGN KEY (course_id, launch_date) REFERENCES Offerings(course_id, launch_date)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+  check (((start_time IN (9, 10, 11) AND end_time IN (10, 11, 12)) OR (start_time IN (14, 15, 16, 17) AND end_time IN (15, 16, 17, 18))) 
+    AND start_time < end_time)
   -- Combined with Consists table (WEAK ENTITIY OF OFFERING)
   -- Combined with Conducts table (Key + Total Participation Constrainteger)
 );
