@@ -218,13 +218,33 @@ BEGIN
     )
     SELECT eid, name 
     FROM AvailableInstructors INNER JOIN Employees ON iid = eid;
-    -- LOOP
-    --     inst_id := r.eid;
-    --     inst_name := r.name;
-    --     RETURN NEXT;
-    -- END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+
+-- CREATE OR REPLACE get_available_instructors(
+--     cid INTEGER,
+--     course_start_date DATE,
+--     course_end_date DATE
+-- ) RETURNS TABLE(emp_id INTEGER, emp_name, emp_total_hours )
+
+CREATE OR REPLACE FUNCTION find_rooms (
+    session_date DATE,
+    session_start_hour INTEGER,
+    session_duration INTEGER
+) RETURNS TABLE(room_id INTEGER) AS $$
+    WITH NotAvailableRooms AS (
+        SELECT rid
+        FROM Sessions
+        WHERE s_date = session_date AND 
+              ((start_time < session_start_hour AND  session_start_hour < end_time)
+              OR 
+               (start_time < session_start_hour + session_duration AND session_start_hour + session_duration < end_time)
+              )
+    )
+    SELECT rid FROM Rooms
+    EXCEPT 
+    SELECT rid FROM NotAvailableRooms;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
