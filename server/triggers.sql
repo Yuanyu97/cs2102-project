@@ -1,16 +1,13 @@
 CREATE OR REPLACE FUNCTION before_insert_update_conducts() RETURNS TRIGGER AS $$
 DECLARE
-    l_date DATE;
     room_id INTEGER;
     course_area TEXT;
 BEGIN
-    SELECT Offerings.launch_date INTO l_date FROM Offerings NATURAL JOIN (SELECT course_id, launch_Date FROM Sessions WHERE Sessions.sid = NEW.sid AND Sessions.course_id = NEW.course_id) AS X;
     SELECT area_name INTO course_area FROM Courses WHERE Courses.course_id = NEW.course_id;
     SELECT rid INTO room_id FROM Sessions WHERE Sessions.sid = NEW.sid AND Sessions.course_id = NEW.course_id;
     IF (course_area <> NEW.area_name) THEN
       RAISE EXCEPTION 'Instructor specializing area not the same as session course area';
     ELSE
-      NEW.launch_Date = l_date;
       NEW.rid = room_id;
       RETURN NEW;
     END IF;

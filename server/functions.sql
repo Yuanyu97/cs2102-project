@@ -323,10 +323,12 @@ with instructor_name_mapping AS (
 SELECT DISTINCT Instructors.iid, Employees.name
 FROM Instructors LEFT JOIN Employees ON Instructors.iid = Employees.eid
 ),
+offering_sessions_table AS (
+    SELECT Sessions.course_id, Sessions.sid, Sessions.start_time, Sessions.s_date FROM Sessions WHERE Sessions.launch_date = l_date AND Sessions.course_id = c_id
+),
 sessions_instructors_table AS (
-SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, Sessions.start_time, Sessions.s_date
-FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid LEFT JOIN Sessions ON Conducts.sid = Sessions.sid AND Sessions.course_id = Conducts.course_id
-WHERE Conducts.course_id = c_id AND Conducts.launch_date = l_date
+SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, offering_sessions_table.start_time, offering_sessions_table.s_date
+FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid INNER JOIN offering_sessions_table ON Conducts.sid = offering_sessions_table.sid AND Conducts.course_id = offering_sessions_table.course_id 
 ),
 num_registrations_for_each_session as (
 SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.sid
@@ -353,17 +355,16 @@ CREATE OR REPLACE PROCEDURE add_course_offering(
 DECLARE
 	seating_capacity INTEGER = 0;
 	temp_seating_capacity INTEGER;
-	i INTEGER;
+	i session_array;
 BEGIN
-	FOREACH i IN ARRAY session_array
+	FOREACH i IN ARRAY arr
 	LOOP
-		SELECT seating_capacity INTO temp_seating_capacity FROM Rooms WHERE session_array[i][2] = Rooms.rid; 
-		seating_capacity := seating_capacity + seating_capacity;
+		SELECT Rooms.seating_capacity INTO temp_seating_capacity FROM Rooms WHERE i.rid = Rooms.rid; 
+		seating_capacity := seating_capacity + temp_seating_capacity;
 	END LOOP;
 	IF (seating_capacity < target) THEN
-		RAISE EXCEPTION 'Total seating capacity must be greater or equal to target num reg';
+		RAISE EXCEPTION 'Total seating capacity % must be greater or equal to target num reg', seating_capacity;
 	END IF;
 END;
 $$ LANGUAGE plpgsql;
 -- seating capacity >= targer_num_reg
--- use DEFAULT for offering_id
