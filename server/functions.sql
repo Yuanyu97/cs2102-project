@@ -379,17 +379,21 @@ BEGIN
     FOREACH i IN ARRAY arr
     LOOP --checking if each session can be assigned an instructor, or is the room available
         INSERT INTO Sessions (s_date, start_time, end_time, course_id, launch_date, rid) VALUES(i.s_date, i.s_start, i.s_start + s_duration, c_id, l_date, i.rid);
-        SELECT COUNT(sid) INTO sess_id FROM Sessions;
+        SELECT sid INTO sess_id FROM Sessions ORDER BY sid desc LIMIT 1;
+        RAISE NOTICE 'sid: %', sess_id;
         SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
         IF (instructor_id IS NULL) THEN
             DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
             RAISE EXCEPTION 'No instructor available to teach session where session date is %, session time is %', i.s_date, i.s_start;
         END IF;
-        INSERT INTO Conducts (iid, area_name, sid, course_id) VALUES (instructor_id, c_area, sess_id, c_id);
         SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, s_duration) WHERE room_id = i.rid;
         IF (r_id IS NULL) THEN
             DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
             RAISE EXCEPTION 'Room % is not avaiable for session', i.rid;
+        ELSE
+            INSERT INTO Conducts (iid, area_name, sid, course_id, rid) VALUES (instructor_id, c_area, sess_id, c_id, r_id);
+            instructor_id := NULL;
+            r_id := NULL;
         END IF;
     END LOOP;
 END;
