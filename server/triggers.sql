@@ -57,6 +57,7 @@ DECLARE
   latest_start_date DATE;
   s_capacity INTEGER;
   old_capacity INTEGER;
+  num_hours INTEGER;
 BEGIN
   SELECT start_date, end_Date INTO earliest_start_date, latest_start_date FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
   IF (NEW.s_date < earliest_start_date OR earliest_start_date IS NULL) THEN
@@ -68,6 +69,8 @@ BEGIN
   SELECT seating_capacity INTO s_capacity FROM Rooms WHERE NEW.rid = Rooms.rid;
   SELECT seating_capacity INTO old_capacity FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
   UPDATE Offerings SET seating_capacity = s_capacity + old_capacity WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  SELECT duration INTO num_hours FROM Courses WHERE Courses.course_id = NEW.course_id;
+  NEW.end_time := NEW.start_time + num_hours; 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
