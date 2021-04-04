@@ -20,7 +20,7 @@ INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('J
 
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-15', '2021-06-30', 25, 'React Course', 29.90);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-02-24', '2022-04-01', 50, 'Ruby Course', 10.90);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-02-24', '2022-04-10', 50, 'Ruby Course', 10.90);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-06-30', '2021-09-26', 35, 'Rest API Course', 8.88);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-07-24', '2021-11-22', 10, 'Java Course', 109.99);
 
@@ -160,3 +160,8 @@ INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id) VALUES (3, 'Py
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 2);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 4);
+
+INSERT INTO Buys(buy_date, cust_id, package_id) VALUES (CURRENT_DATE, 3, 1);
+
+INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 1, '2021-04-11');
+INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 2, 1, '2021-04-11');

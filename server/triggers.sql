@@ -22,7 +22,13 @@ FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts();
 CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
 DECLARE
   num_remaining_redemptions INTEGER;
+  sale_start DATE;
+  sale_end DATE;
 BEGIN
+  SELECT sale_start_date, sale_end_date INTO sale_start, sale_end FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
+  IF (NEW.buy_date < sale_start OR NEW.buy_date > sale_end) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. % buy date not within % and %', NEW.buy_date, sale_start_date, sale_end_date;
+  END IF;
   SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
   RETURN NEW;
@@ -78,3 +84,17 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER before_insert_session 
 BEFORE INSERT ON Sessions
 FOR EACH ROW EXECUTE FUNCTION before_insert_session();
+
+CREATE OR REPLACE FUNCTION after_insert_redeems() RETURNS TRIGGER AS $$
+DECLARE
+  current_remaining INTEGER;
+BEGIN
+  SELECT num_remaining_redemptions INTO current_remaining FROM Buys WHERE Buys.buy_date = NEW.buy_date AND Buys.cust_id = NEW.cust_id AND Buys.package_id = NEW.package_id;
+  UPDATE Buys SET num_remaining_redemptions = current_remaining - 1 WHERE Buys.buy_date = NEW.buy_date AND Buys.cust_id = NEW.cust_id AND Buys.package_id = NEW.package_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_insert_redeems 
+AFTER INSERT ON Redeems
+FOR EACH ROW EXECUTE FUNCTION after_insert_redeems();
