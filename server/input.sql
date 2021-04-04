@@ -141,6 +141,7 @@ INSERT INTO Instructors VALUES(4, 'Java');
 INSERT INTO Instructors VALUES(5, 'Python');
 INSERT INTO Instructors VALUES(5, 'C++');
 INSERT INTO Instructors VALUES(3, 'R');
+INSERT INTO Instructors VALUES(6, 'Java');
 
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 2, 'Java for beginners', 'Java');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');

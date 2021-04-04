@@ -50,7 +50,6 @@ CREATE TRIGGER offerings_trigger
 BEFORE UPDATE ON Offerings
 FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
 
-
 CREATE OR REPLACE FUNCTION before_insert_session() RETURNS TRIGGER AS $$
 DECLARE
   earliest_start_date DATE;
@@ -75,3 +74,14 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER before_insert_session 
 BEFORE INSERT ON Sessions
 FOR EACH ROW EXECUTE FUNCTION before_insert_session();
+
+-- CREATE OR REPLACE FUNCTION before_update_conducts() RETURNS TRIGGER AS $$
+-- DECLARE
+
+-- BEGIN
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- CREATE TRIGGER before_update_conducts
+-- BEFORE UPDATE ON Conducts
+-- FOR EACH ROW EXECUTE FUNCTION before_update_conducts();
