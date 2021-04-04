@@ -139,7 +139,6 @@ CREATE TABLE Courses (
 
 -- checked
 CREATE TABLE Offerings (
-  offering_id SERIAL UNIQUE NOT NULL,
   course_id integer REFERENCES Courses ON DELETE CASCADE,
   launch_date DATE,
   start_date DATE,
@@ -161,11 +160,8 @@ CREATE TABLE Offerings (
 CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   sid INTEGER,
   s_date DATE,
-  -- integer for start hours only 9,10,11,14,15,16,17
   start_time integer,
-  -- integer for end hours 
   end_time integer,
-  -- computed at runtime
   course_id integer,
   launch_date DATE,
   rid integer NOT NULL REFERENCES Rooms,
@@ -183,8 +179,8 @@ CREATE TABLE Conducts (
   area_name TEXT,
   rid INTEGER NOT NULL,
   sid INTEGER,
-  course_id INTEGER,
   launch_date DATE,
+  course_id INTEGER,
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
   FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions

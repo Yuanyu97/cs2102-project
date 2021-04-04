@@ -74,7 +74,7 @@ CREATE OR REPLACE PROCEDURE remove_employee (
     emp_depart_date DATE
 ) AS $$
     WITH SessionsAndInstructors AS (
-        SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id
+        SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
     )
     UPDATE Employees 
     SET depart_date = emp_depart_date
@@ -246,6 +246,92 @@ CREATE OR REPLACE FUNCTION find_rooms (
     SELECT rid FROM NotAvailableRooms;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION get_available_rooms(
+start_date DATE,
+end_date DATE
+) RETURNS TABLE (
+    r_id INTEGER,
+    r_capacity INTEGER,
+    day DATE,
+    hours INT[]
+) AS $$
+DECLARE
+    curs refcursor;
+    r RECORD;
+    curr_date DATE := start_date;
+    start_hour_1 INTEGER := 9;
+    start_hour_2 INTEGER := 14;
+    arr INT[];
+    start_hour INTEGER;
+    end_hour INTEGER;
+BEGIN
+    CREATE TEMPORARY TABLE output_table(
+        r_id INTEGER,
+        r_capacity INTEGER,
+        day DATE,
+        hours INT[]
+    );
+LOOP
+    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
+    FROM Rooms 
+    LEFT JOIN (
+        SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.sid, Sessions.course_id, Sessions.launch_date, Sessions.rid
+        FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
+        WHERE Sessions.s_date = curr_date
+        GROUP BY Sessions.course_id, Sessions.launch_date, Sessions.sid) AS X 
+        ON Rooms.rid = X.rid;
+    LOOP
+        FETCH curs INTO r;
+        EXIT WHEN NOT FOUND;
+            LOOP
+                IF (r.r_capacity = 0) THEN
+                    EXIT;
+                END IF;
+                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
+                IF (start_hour IS NULL AND end_hour IS NULL) THEN
+                    arr := array_cat(arr, ARRAY[9, 10, 11]);
+                    EXIT;
+                END IF;
+                IF (start_hour_1 < start_hour OR start_hour_1 > end_hour) THEN
+                    arr := array_append(arr, start_hour_1);
+                END IF;
+                start_hour_1 := start_hour_1 + 1;
+                IF (start_hour_1 > 11) THEN
+                    start_hour_1 := 9;
+                    EXIT;
+                END IF;
+            END LOOP;
+            LOOP
+                IF (r.r_capacity = 0) THEN
+                    EXIT;
+                END IF;
+                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
+                IF (start_hour IS NULL AND end_hour IS NULL) THEN
+                    arr := array_cat(arr, ARRAY[14, 15, 16, 17, 18]);
+                    EXIT;
+                END IF;
+                IF (start_hour_2 < start_hour OR start_hour_2 > end_hour) THEN
+                    arr := array_append(arr, start_hour_2);
+                END IF;
+                start_hour_2 := start_hour_2 + 1;
+                IF (start_hour_2 > 18) THEN
+                    start_hour_2 := 14;
+                    EXIT;
+                END IF;
+            END LOOP;
+            INSERT INTO output_table VALUES(r.rid, r.r_capacity, curr_date, arr);
+            arr := NULL;
+    END LOOP;
+    CLOSE curs;
+    curr_date := curr_date + 1;
+    EXIT WHEN curr_date > end_date;
+END LOOP;
+    RETURN QUERY
+    SELECT * FROM output_table ORDER BY r_id, day;
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
@@ -294,7 +380,7 @@ course_fees NUMERIC,
 number_of_remaining_seats INTEGER) AS $$
 with num_registrations_for_each_session as (
 SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.launch_date
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid
+FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
 GROUP BY Sessions.course_id, Sessions.launch_date),
 offerings_join_courses as (
 SELECT Offerings.course_id, Offerings.launch_date, Courses.title as course_title, Courses.area_name as course_area, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees as course_fees, Offerings.seating_capacity
@@ -305,7 +391,7 @@ ON offerings_join_courses.course_id = num_registrations_for_each_session.course_
 WHERE registration_deadline >= CURRENT_DATE;
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION get_available_course_sessions(_offering_id INTEGER)
+CREATE OR REPLACE FUNCTION get_available_course_sessions(_course_id INTEGER, _launch_date DATE)
 RETURNS TABLE (
 session_date DATE,
 start_hour INTEGER,
@@ -317,7 +403,7 @@ l_date DATE;
 BEGIN
 SELECT course_id, launch_date INTO c_id, l_date
 FROM Offerings
-WHERE Offerings.offering_id = _offering_id;
+WHERE Offerings.course_id = _course_id AND Offerings.launch_date = _launch_date;
 RETURN QUERY
 with instructor_name_mapping AS (
 SELECT DISTINCT Instructors.iid, Employees.name
@@ -332,7 +418,7 @@ FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_nam
 ),
 num_registrations_for_each_session as (
 SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.sid
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid
+FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
 GROUP BY Sessions.course_id, Sessions.sid
 )
 SELECT sessions_instructors_table.s_date as session_date, sessions_instructors_table.start_time as start_hour, sessions_instructors_table.name as instructor_name, (sessions_instructors_table.seating_capacity - num_registrations)::int as remaining_seats
@@ -343,7 +429,6 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE PROCEDURE add_course_offering(
-	offer_id INTEGER,
 	c_id INTEGER,
 	c_fees NUMERIC,
 	l_Date DATE,
@@ -357,41 +442,37 @@ DECLARE
 	temp_seating_capacity INTEGER;
 	i session_array;
     instructor_id INTEGER;
-    num_sessions INTEGER = 0;
     c_duration INTEGER;
-    s_duration INTEGER;
     r_id INTEGER;
     c_area TEXT;
-    sess_id INTEGER;
+    sess_id INTEGER = 0;
 BEGIN
 	FOREACH i IN ARRAY arr --finding num_sess and total seating capacity
 	LOOP
 		SELECT Rooms.seating_capacity INTO temp_seating_capacity FROM Rooms WHERE i.rid = Rooms.rid; 
 		seating_capacity := seating_capacity + temp_seating_capacity;
-        num_sessions := num_sessions + 1;
 	END LOOP;
 	IF (seating_capacity < target) THEN
 		RAISE EXCEPTION 'Total seating capacity % must be greater or equal to target num reg', seating_capacity;
 	END IF;
     SELECT duration, area_name INTO c_duration, c_area FROM Courses WHERE Courses.course_id = c_id;
-    s_duration := CEILING(c_duration / num_sessions); --finding sess duration for each sess
     INSERT INTO Offerings (course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (c_id, l_date, target, reg_deadline, c_fees, a_id);
     FOREACH i IN ARRAY arr
     LOOP --checking if each session can be assigned an instructor, or is the room available
-        INSERT INTO Sessions (s_date, start_time, end_time, course_id, launch_date, rid) VALUES(i.s_date, i.s_start, i.s_start + s_duration, c_id, l_date, i.rid);
-        SELECT sid INTO sess_id FROM Sessions ORDER BY sid desc LIMIT 1;
+        sess_id := sess_id + 1;
+        INSERT INTO Sessions (sid, s_date, start_time, end_time, course_id, launch_date, rid) VALUES(sess_id, i.s_date, i.s_start, i.s_start + c_duration, c_id, l_date, i.rid);
         RAISE NOTICE 'sid: %', sess_id;
         SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
         IF (instructor_id IS NULL) THEN
-            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
+            DELETE FROM Offerings WHERE Offerings.launch_Date= l_date AND Offerings.course_id = c_id;
             RAISE EXCEPTION 'No instructor available to teach session where session date is %, session time is %', i.s_date, i.s_start;
         END IF;
-        SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, s_duration) WHERE room_id = i.rid;
+        SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, c_duration) WHERE room_id = i.rid;
         IF (r_id IS NULL) THEN
-            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
+            DELETE FROM Offerings WHERE Offerings.launch_Date= l_date AND Offerings.course_id = c_id;
             RAISE EXCEPTION 'Room % is not avaiable for session', i.rid;
         ELSE
-            INSERT INTO Conducts (iid, area_name, sid, course_id, rid) VALUES (instructor_id, c_area, sess_id, c_id, r_id);
+            INSERT INTO Conducts (iid, area_name, sid, launch_date, course_id, rid) VALUES (instructor_id, c_area, sess_id, l_date, c_id, r_id);
             instructor_id := NULL;
             r_id := NULL;
         END IF;
