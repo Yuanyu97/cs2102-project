@@ -662,4 +662,492 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+/** 17: Register for session
+Note:
+- credit_card registrations are not explicity recorded. 
+Testing done:
+NEGATIVE:
+[?] Course pacakge not active
+[?] Session does not exist
+[?] Payment method does not exist
+[?] Customer id does not exit
+[?] Course offering does not exist
+POSITIVE:
+[G] Redemption registration
+[G] Credit card registration
+**/
+CREATE OR REPLACE PROCEDURE register_session(
+    target_cid INTEGER, 
+    offering_course_id INTEGER,
+    offering_launch_date DATE,
+    target_sid INTEGER,
+    payment_method TEXT
+) AS $$
+DECLARE
+offering_registration_deadline DATE;
+offering_start_date DATE;
+offering_end_date DATE;
+target_package_id INTEGER;
+target_package_buy_date DATE;
+BEGIN
+
+SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
+INTO offering_registration_deadline, offering_start_date, offering_end_date
+FROM Offerings
+where Offerings.course_id = offering_course_id AND Offerings.launch_date = offering_launch_date; 
+
+-- VALIDATION
+IF (payment_method NOT in ('credit_card', 'redemption')) THEN
+RAISE EXCEPTION 'Payment method must be credit_card or redemption only';
+END IF;
+
+-- process redemption transaction
+IF (payment_method = 'redemption') THEN 
+    SELECT Buys.package_id, Buys.buy_date
+    INTO target_package_id, target_package_buy_date
+    FROM Buys
+    WHERE Buys.cust_id = target_cid AND num_remaining_redemptions > 0;
+
+    -- if no such packaage then raise exception
+    IF (target_package_id IS NULL AND target_package_buy_date IS NULL) THEN
+        RAISE EXCEPTION 'Customer does not have a active course package to redeem from';
+    END IF;
+
+    INSERT INTO Redeems (package_id, buy_date, sid, launch_date, course_id, redeem_date, cust_id) 
+    VALUES(target_package_id, target_package_buy_date, target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
+
+    UPDATE Buys
+    SET num_remaining_redemptions = Buys.num_remaining_redemptions - 1
+    WHERE 
+        Buys.cust_id = target_cid AND 
+        Buys.package_id = target_package_id AND 
+        Buys.buy_date = target_package_buy_date;
+END IF;
+
+
+-- insert into registration table
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) 
+VALUES (target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
+
+END;
+$$ LANGUAGE plpgsql;
+
+/** 18: Get all customer registrations
+-- only return active registration sessions
+-- sorted in ascending order of session date and session start hour
+Testing done:
+NEGATIVE:
+[?] 
+POSITIVE:
+[?] Get all active registration and sorted in order
+**/
+CREATE OR REPLACE FUNCTION get_my_registrations(
+    target_cid INTEGER
+) RETURNS TABLE (
+    course_title TEXT, -- Courses (course title)
+    fees NUMERIC, -- Offerings
+    s_date DATE, -- Sessions
+    start_time INTEGER, -- Sessions
+    session_duration INTEGER, -- Sessions
+    instructor_name TEXT -- Employees table
+) AS $$
+BEGIN
+
+RETURN QUERY
+SELECT distinct Courses.title as course_title, Offerings.fees as fees, Sessions.s_date as s_date,
+Sessions.start_time as start_time, Courses.duration as session_duration, Employees.name as instructor_name
+FROM Courses, Offerings, Sessions, Employees, Registers, Conducts
+WHERE 
+Employees.eid = Conducts.iid AND
+Conducts.course_id = Sessions.course_id AND
+Conducts.launch_date = Sessions.launch_date AND
+Courses.course_id = Offerings.course_id AND
+Sessions.s_date > current_date AND
+Sessions.course_id = Offerings.course_id AND
+Sessions.launch_date = Offerings.launch_date AND
+Registers.course_id = Sessions.course_id AND
+Registers.launch_date = Sessions.launch_date AND
+Registers.sid = Sessions.sid AND
+Registers.cust_id = target_cid
+ORDER BY Sessions.s_date, Sessions.start_time;
+
+END;
+$$ LANGUAGE plpgsql;
+
+/** 19: Customer request to change registed course session to another session
+NEGATIVE:
+[?] Customer does not exist
+[?] Session does not exist
+[?] Customer previously not registered to course with another session
+POSITIVE:
+[G] Update course session correctly
+**/
+CREATE OR REPLACE PROCEDURE update_course_session(
+    target_cid INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
+    new_sid INTEGER
+) AS $$
+DECLARE
+target_session_start_date DATE;
+BEGIN
+
+-- VALIDATION
+-- Customer registered to some session previously
+IF (NOT EXISTS 
+    (SELECT 1 from Registers WHERE 
+        Registers.cust_id = target_cid AND
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id)) THEN
+            RAISE EXCEPTION 'Customer % previously has not registered for a session under course offering %, with launch date: %'
+                , new_sid, target_course_id, target_offering_launch_date;
+END IF;
+
+-- Target session exists
+IF (NOT EXISTS 
+    (SELECT 1 from Sessions WHERE 
+        Sessions.sid = new_sid AND 
+        Sessions.launch_date = target_offering_launch_date AND
+        Sessions.course_id = target_course_id)) THEN
+            RAISE EXCEPTION 'Target session % does not exist for course offering %, with launch date: %'
+                , new_sid, target_course_id, target_offering_launch_date;
+END IF;
+
+SELECT Sessions.s_date into target_session_start_date
+from Sessions
+where Sessions.sid = new_sid AND 
+    Sessions.launch_date = target_offering_launch_date AND
+    Sessions.course_id = target_course_id;
+
+-- Target session should not have started
+IF (target_session_start_date < CURRENT_DATE) THEN
+    RAISE EXCEPTION 'Target session %, is in the past', new_sid;
+END IF;
+
+-- Target session has spare seats to be done as a trigger
+
+UPDATE Registers
+SET sid = new_sid,
+registration_date = CURRENT_DATE
+WHERE Registers.launch_date = target_offering_launch_date AND
+Registers.course_id = target_course_id AND
+Registers.cust_id = target_cid;
+
+END;
+$$ LANGUAGE plpgsql;
+-- -- check new session_id exists
+-- -- check cid currently registered in
+-- -- update Registers table sid to new 
+
+/** 20: cancel / refund registration
+NEGATIVE:
+[?] Customer does not exist
+[?] Customer has not registered for target offering
+POSITIVE:
+[G] No refund
+[G] Refund credit card payment
+[G] Refund redemption 
+**/
+-- if request is valid: process the request with necessary update
+CREATE OR REPLACE PROCEDURE cancel_registration (
+    target_cid INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE
+) AS $$
+DECLARE
+target_sid INTEGER;
+target_session_s_date DATE;
+target_course_fees NUMERIC;
+is_redemption_payment BOOLEAN DEFAULT FALSE;
+target_package_id INTEGER;
+target_package_buy_date DATE;
+BEGIN
+
+SELECT fees INTO target_course_fees
+FROM Offerings
+WHERE Offerings.course_id =  target_course_id AND Offerings.launch_Date = target_offering_launch_date;
+
+-- VALIDATION
+-- Check cid is indeed registered
+IF (NOT EXISTS (
+    SELECT 1 
+    FROM Registers
+    WHERE 
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id AND
+        Registers.cust_id = target_cid
+)) THEN
+    RAISE EXCEPTION 'Customer %, is not registered for course: %, with launch date: %', target_cid, target_course_id, target_offering_launch_date;
+END IF;
+
+SELECT Registers.sid INTO target_sid
+FROM Registers
+WHERE 
+    Registers.launch_date = target_offering_launch_date AND
+    Registers.course_id = target_course_id AND
+    Registers.cust_id = target_cid;
+
+SELECT Sessions.s_date into target_session_s_date
+FROM Sessions
+WHERE 
+    Sessions.launch_date = target_offering_launch_date AND
+    Sessions.course_id = target_course_id AND
+    Sessions.sid = target_sid;
+
+-- check if is redeem or credit card
+IF (EXISTS (
+    SELECT 1 
+    FROM Redeems
+    WHERE 
+        Redeems.launch_date = target_offering_launch_date AND
+        Redeems.course_id = target_course_id AND
+        Redeems.cust_id = target_cid AND
+        Redeems.sid = target_sid
+)) THEN
+    is_redemption_payment := TRUE;
+END IF;
+
+-- check current date is 7 days before registered session
+IF ((target_session_s_date - CURRENT_DATE) < 7) THEN
+    INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id)
+    VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id);
+ELSE
+-- process actual refund
+    IF (is_redemption_payment) THEN
+        SELECT Buys.package_id, Buys.buy_date
+        INTO target_package_id, target_package_buy_date
+        FROM Buys
+        WHERE Buys.cust_id = target_cid
+        ORDER BY buy_date
+        LIMIT 1;
+
+        UPDATE Buys
+        SET num_remaining_redemptions = Buys.num_remaining_redemptions + 1
+        WHERE 
+            Buys.cust_id = target_cid AND 
+            Buys.package_id = target_package_id AND 
+            Buys.buy_date = target_package_buy_date;
+
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, package_credit)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 1);
+    ELSE
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, refund_amt)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 0.9 * target_course_fees);
+    END IF;
+END IF;
+
+-- remove from registers table
+DELETE FROM Registers 
+WHERE 
+    Registers.launch_date = target_offering_launch_date AND
+    Registers.course_id = target_course_id AND
+    Registers.cust_id = target_cid AND 
+    Registers.sid = target_sid;
+
+END;
+$$ LANGUAGE plpgsql;
+-- -- check mapping exists
+-- -- remove all registers rows with cid = cid 
+-- -- soft delete?
+
+/** 21: Change instructor for a course session
+Testing done:
+NEGATIVE:
+[?] target course session has started
+[G] Instructor does not teach course area
+[?] Instrucotr does not exist
+POSITIVE:
+[G] Standard update
+**/
+CREATE OR REPLACE PROCEDURE update_instructor (
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
+    target_sid INTEGER,
+    new_iid INTEGER -- Conducts
+) AS $$
+DECLARE
+session_start_date DATE;
+BEGIN
+
+SELECT s_date INTO session_start_date
+FROM Sessions
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
+
+IF (session_start_date < CURRENT_DATE) THEN 
+RAISE EXCEPTION 'Course session has started';
+END IF;
+
+UPDATE Conducts
+SET iid = new_iid
+WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND Conducts.launch_date = target_offering_launch_date;
+END;
+$$ LANGUAGE plpgsql;
+
+/** 22: change room for a course session
+TODO:
+- Check room capacity limitations [if relevant]
+
+Testing done:
+NEGATIVE:
+[?] 
+POSITIVE:
+[G] Standard update
+**/
+CREATE OR REPLACE PROCEDURE update_room (
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
+    target_sid INTEGER,
+    new_rid INTEGER
+) AS $$
+DECLARE
+session_start_date DATE;
+BEGIN
+
+-- get session_start_id
+SELECT s_date INTO session_start_date
+FROM Sessions
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
+
+-- check course session has not started
+IF (session_start_date < CURRENT_DATE) THEN 
+RAISE EXCEPTION 'Course session has started';
+END IF;
+
+-- actual update
+UPDATE Sessions
+SET rid = new_rid
+WHERE Sessions.course_id = target_course_id AND Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date;
+
+UPDATE Conducts
+SET rid = new_rid
+WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND Conducts.launch_date = target_offering_launch_date;
+
+END;
+$$ LANGUAGE plpgsql;
+
+/** 23: remove course session
+Testing done:
+NEGATIVE:
+[?] session has already started
+[G] session has at least one customer registered already
+[G] session is only session in course offering
+POSITIVE:
+[G] Standard removal
+**/
+CREATE OR REPLACE PROCEDURE remove_session(
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
+    target_sid INTEGER
+) AS $$
+DECLARE
+session_start_date DATE;
+num_registered_to_session INTEGER;
+BEGIN
+
+-- get session_start_id
+SELECT s_date INTO session_start_date
+FROM Sessions
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
+
+-- VALIDATION
+-- check course session has not started
+IF (session_start_date < CURRENT_DATE) THEN 
+RAISE EXCEPTION 'Course session has started';
+END IF;
+
+-- check nobody registered
+IF (EXISTS (
+    SELECT 1 FROM Registers 
+    WHERE 
+        Registers.course_id = target_course_id AND
+        Registers.sid = target_sid AND
+        Registers.launch_date = target_offering_launch_date
+    )) THEN 
+RAISE EXCEPTION 'There is at least one customer registered for session. Thus, removal of target session is invalid';
+END IF;
+
+-- check if session is only one for couse_offering
+IF ((SELECT count(*) FROM Sessions 
+        WHERE 
+            Sessions.sid = target_sid AND
+            Sessions.course_id = target_course_id AND
+            Sessions.launch_date = target_offering_launch_date) = 1
+    ) THEN 
+RAISE EXCEPTION 'Only session is course offering. Thus, removal of target session is invalid';
+END IF;
+
+-- actual deletion
+DELETE FROM Sessions
+WHERE Sessions.course_id = target_course_id AND Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date;
+
+DELETE FROM Conducts
+WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND launch_date = target_offering_launch_date;
+
+END;
+$$ LANGUAGE plpgsql;
+-- -- check request valid: sid,  exists in Sessions / Conducts
+-- -- check: if >=1 registration for session cannot remove!!
+-- -- allow seating capacity of course offering to
+-- -- fall below course offering target number of reigstrations
+
+/** 24: Add a new session to course offering
+Changes:
+- Change end date calculation to count from Courses.duration
+
+Testing done:
+NEGATIVE:
+[G] instructor specialisation mismatch with course area
+[G] start_day not within 10 days of registration deadline
+[?] same day and time 
+[?] invalid start hour
+POSITIVE:
+[G] Standard insertion
+**/ 
+CREATE OR REPLACE PROCEDURE add_session (
+    offering_course_id INTEGER,
+    offering_launch_date DATE,
+    new_sid INTEGER,
+    s_date DATE,
+    start_hour INTEGER,
+    iid INTEGER,
+    rid INTEGER
+) AS $$
+DECLARE
+offering_registration_deadline DATE;
+offering_start_date DATE;
+offering_end_date DATE;
+course_area_name TEXT;
+offering_duration INTEGER;
+BEGIN
+
+-- check start_hour is valid number
+
+-- chekc No two sessions for the same course offering can be conducted on the same day and at the same time
+
+-- get registration deadline
+SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
+INTO offering_registration_deadline, offering_start_date, offering_end_date
+FROM Offerings
+where Offerings.launch_date = offering_launch_date AND Offerings.course_id = offering_course_id;
+
+SELECT Courses.area_name, Courses.duration 
+INTO course_area_name, offering_duration
+FROM Courses
+WHERE Courses.course_id = offering_course_id;
+
+IF (offering_registration_deadline < CURRENT_DATE) THEN
+RAISE EXCEPTION 'Specified course offering registration deadline has passed';
+END IF;
+
+-- insert into sessions here
+INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date, rid) 
+    VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date,rid);
+
+INSERT INTO Conducts(iid, area_name, sid, course_id, rid) 
+    VALUES (iid, course_area_name, new_sid, offering_course_id, rid);
+
+END;
+$$ LANGUAGE plpgsql;
+
+
 
