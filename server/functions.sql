@@ -272,14 +272,20 @@ BEGIN
         hours INT[]
     );
 LOOP
-    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations - X.num_redeems, Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity - X.num_redeems, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
+    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - registersTable.num_registrations - redeemsTable.num_redeems, Rooms.seating_capacity - registersTable.num_registrations, Rooms.seating_capacity - redeemsTable.num_redeems, Rooms.seating_capacity) as r_capacity, COALESCE(redeemsTable.sid, registersTable.sid) AS sid, COALESCE(redeemsTable.course_id, registersTable.course_id) AS course_id, COALESCE(redeemsTable.launch_date, registersTable.launch_date) AS launch_date 
     FROM Rooms 
     LEFT JOIN (
-        SELECT COUNT(Registers.cust_id) as num_registrations, COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
-        FROM Conducts NATURAL JOIN Sessions LEFT JOIN Registers ON Conducts.sid = Registers.sid AND Conducts.launch_date = Registers.launch_date AND Conducts.course_id = Registers.course_id LEFT JOIN Redeems ON Conducts.sid = Redeems.sid AND Conducts.launch_date = Redeems.launch_date AND Conducts.course_id = Redeems.course_id
+        SELECT COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
+        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Redeems 
         WHERE Sessions.s_date = curr_date
-        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid) AS X 
-        ON Rooms.rid = X.rid;
+        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
+    ) AS redeemsTable ON Rooms.rid = redeemsTable.rid
+    FULL OUTER JOIN (
+        SELECT COUNT(Registers.cust_id) as num_registrations, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
+        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Registers
+        WHERE Sessions.s_date = curr_date
+        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
+    ) registersTable ON redeemsTable.rid = registersTable.rid;
     LOOP
         FETCH curs INTO r;
         EXIT WHEN NOT FOUND;
@@ -364,7 +370,7 @@ BEGIN
     FOREACH i IN ARRAY arr
     LOOP --checking if each session can be assigned an instructor, or is the room available
         sess_id := sess_id + 1;
-        INSERT INTO Sessions (sid, s_date, start_time, end_time, course_id, launch_date, rid) VALUES(sess_id, i.s_date, i.s_start, i.s_start + c_duration, c_id, l_date, i.rid);
+        INSERT INTO Sessions (sid, s_date, start_time, end_time, course_id, launch_date) VALUES(sess_id, i.s_date, i.s_start, i.s_start + c_duration, c_id, l_date);
         RAISE NOTICE 'sid: %', sess_id;
         SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
         IF (instructor_id IS NULL) THEN
@@ -451,12 +457,12 @@ BEGIN
     );
 
     OPEN curs1 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
-        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions LEFT JOIN Courses ON Sessions.course_id = Courses.course_id NATURAL LEFT JOIN Course_packages
         WHERE Buys.cust_id = c_id AND num_remaining_redemptions > 0 
         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
 
     OPEN curs2 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
-        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions LEFT JOIN Courses ON Sessions.course_id = Courses.course_id NATURAL LEFT JOIN Course_packages
         WHERE Buys.cust_id = c_id AND num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7
         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
     LOOP
@@ -512,107 +518,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- CREATE OR REPLACE FUNCTION get_my_course_package(
---     c_id INTEGER
--- ) RETURNS TABLE (
---     j JSON --package name, purchase date, price of package, number of free sessions included in the package, 
---     -- number of sessions that have not been redeemed, 
---     -- and information for each redeemed session (course name, session date, session start hour)
--- ) AS $$
--- DECLARE
---     arr redeemed_session;
---     curs refcursor;
---     r RECORD;
---     p_id INTEGER;
---     p_name TEXT;
---     p_date DATE;
---     p_price NUMERIC;
---     p_not_redeemed INTEGER;
--- BEGIN
---     CREATE TEMPORARY TABLE output_table(
---         package_name TEXT,
---         purchase_date DATE,
---         price_of_package NUMERIC,
---         num_sessions_not_redeemed INTEGER,
---         redeemed_sessions_info redeemed_session[]
---     );
---     RETURN QUERY
---     with active_course_packages AS (
---         SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
---         Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
---         WHERE cust_id = c_id AND num_remaining_redemptions > 0 
---         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time
---     ),
---     partially_active_pacakges AS (
---         SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
---         Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
---         WHERE cust_id = c_id AND num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7
---         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time
---     )
---     OPEN curs FOR active_course_packages;
---     LOOP
---         FETCH curs INTO r;
---         EXIT WHEN NOT FOUND;
---         IF (p_id NOT NULL AND r.package_id <> p_id) THEN --diff package
---             INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr); --insert prev info
---             p_id := r.package_id;
---             p_name := r.package_name;
---             p_date := r.buy_date;
---             p_price := r.price;
---             p_not_redeemed := r.num_remaining_redemptions;
---             arr := NULL;
---             IF (r.s_date IS NOT NULL) THEN
---                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
---             END IF;
---         END IF;
---         IF (p_id NOT NULL AND r.package_id = p_id) THEN --same package
---             IF (r.s_date IS NOT NULL) THEN
---                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
---             END IF;
---         END IF;
---         IF (p_id IS NULL) THEN --first package
---             p_id := r.package_id;
---             p_name := r.package_name;
---             p_date := r.buy_date;
---             p_price := r.price;
---             p_not_redeemed := r.num_remaining_redemptions;
---             IF (r.s_date IS NOT NULL) THEN
---                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
---             END IF;
---         END IF;
---     END LOOP;
---     IF (p_id IS NOT NULL) THEN --add last element
---         INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr);
---             p_id := NULL;
---             p_name := NULL;
---             p_date := NULL;
---             p_price := NULL;
---             p_not_redeemed := NULL;
---             arr := NULL;
---     END IF;
---     CLOSE curs;
---     OPEN curs FOR partially_active_pacakges
---     LOOP
---         FETCH curs INTO r;
---         EXIT WHEN NOT FOUND;
-        
---     END LOOP;
---     CLOSE curs;
---     RETURN QUERY
---     SELECT row_to_json(a) FROM (SELECT * FROM output_table) a; 
--- END;
--- $$ LANGUAGE plpgsql;
-
 
 CREATE OR REPLACE FUNCTION get_available_course_offerings()
 RETURNS TABLE (
-course_title TEXT,
-course_area TEXT,
-start_date DATE,
-end_date DATE,
-registration_deadline DATE,
-course_fees NUMERIC,
-number_of_remaining_seats INTEGER) AS $$
+    course_title TEXT,
+    course_area TEXT,
+    start_date DATE,
+    end_date DATE,
+    registration_deadline DATE,
+    course_fees NUMERIC,
+    number_of_remaining_seats INTEGER
+) AS $$
 SELECT Courses.title, Courses.area_name, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees, Offerings.seating_capacity
 FROM Offerings LEFT JOIN Courses ON Offerings.course_id = Courses.course_id
 WHERE Offerings.registration_deadline >= CURRENT_DATE AND Offerings.seating_capacity > 0;
@@ -620,39 +536,46 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION get_available_course_sessions(_course_id INTEGER, _launch_date DATE)
 RETURNS TABLE (
-session_date DATE,
-start_hour INTEGER,
-instructor_name TEXT,
-remaining_seats INTEGER) AS $$
+    session_date DATE,
+    start_hour INTEGER,
+    instructor_name TEXT,
+    remaining_seats INTEGER
+) AS $$
+DECLARE
+    reg_deadline DATE;
 BEGIN
+SELECT registration_deadline INTO reg_deadline 
+FROM Offerings 
+WHERE Offerings.course_id = _course_id AND Offerings.launch_date = _launch_date;
+IF (reg_deadline < CURRENT_DATE) THEN
+    RAISE EXCEPTION 'Past course offering registration deadline %', reg_deadline;
+END IF;
 RETURN QUERY
 with instructor_name_mapping AS (
-SELECT DISTINCT Instructors.iid, Employees.name
-FROM Instructors LEFT JOIN Employees ON Instructors.iid = Employees.eid
+    SELECT DISTINCT Instructors.iid, Employees.name
+    FROM Instructors LEFT JOIN Employees ON Instructors.iid = Employees.eid
 ),
-offering_sessions_table AS (
-    SELECT Sessions.sid, Sessions.start_time, Sessions.s_date FROM Sessions WHERE Sessions.launch_date = _launch_date AND Sessions.course_id = _course_id
-),
-sessions_instructors_table AS (
-    SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, offering_sessions_table.start_time, offering_sessions_table.s_date
-    FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid INNER JOIN offering_sessions_table ON Conducts.sid = offering_sessions_table.sid AND Conducts.course_id = offering_sessions_table.course_id 
+offering_sessions_instructor_table AS (
+    SELECT instructor_name_mapping.name, Sessions.sid, Sessions.start_time, Sessions.s_date, Sessions.course_id, Sessions.launch_date, Rooms.seating_capacity 
+    FROM Sessions NATURAL JOIN Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid
+    WHERE Sessions.launch_date = _launch_date AND Sessions.course_id = _course_id
 ),
 num_registrations_for_each_session AS (
-    SELECT COUNT(Registers.cust_id) AS num_reg, offering_sessions_table.sid
-    FROM offering_sessions_table LEFT JOIN Registers ON offering_sessions_table.sid = Registers.sid
+    SELECT COUNT(Registers.cust_id) AS num_reg, offering_sessions_instructor_table.sid, offering_sessions_instructor_table.course_id, offering_sessions_instructor_table.launch_date
+    FROM Registers NATURAL LEFT JOIN offering_sessions_instructor_table
     WHERE Registers.course_id = _course_id AND Registers.launch_date = _launch_date 
-    GROUP BY offering_sessions_table.sid
+    GROUP BY offering_sessions_instructor_table.sid, offering_sessions_instructor_table.course_id, offering_sessions_instructor_table.launch_date
 ),
 num_redemptions_for_each_session AS (
-    SELECT COUNT(Redeems.cust_id) AS num_red, offering_sessions_table.sid
-    FROM offering_sessions_table LEFT JOIN Redeems ON offering_sessions_table.sid = Redeems.sid
+    SELECT COUNT(Redeems.cust_id) AS num_red, offering_sessions_instructor_table.sid, offering_sessions_instructor_table.course_id, offering_sessions_instructor_table.launch_date
+    FROM Redeems NATURAL LEFT JOIN offering_sessions_instructor_table
     WHERE Redeems.course_id = _course_id AND Redeems.launch_date = _launch_date 
-    GROUP BY offering_sessions_table.sid
+    GROUP BY offering_sessions_instructor_table.sid, offering_sessions_instructor_table.course_id, offering_sessions_instructor_table.launch_date
 )
-SELECT sessions_instructors_table.s_date, sessions_instructors_table.start_time, sessions_instructors_table.name, COALESCE(sessions_instructors_table.seating_capacity - num_reg - num_red, sessions_instructors_table.seating_capacity - num_reg, sessions_instructors_table.seating_capacity - num_red, sessions_instructors_table.seating_capacity)
-FROM sessions_instructors_table LEFT JOIN num_registrations_for_each_session ON sessions_instructors_table.sid = num_registrations_for_each_session.sid LEFT JOIN num_redemptions_for_each_session ON sessions_instructors_table.sid = num_redemptions_for_each_session.sid
-WHERE COALESCE(sessions_instructors_table.seating_capacity - num_reg - num_red, sessions_instructors_table.seating_capacity - num_reg, sessions_instructors_table.seating_capacity - num_red, sessions_instructors_table.seating_capacity) > 0
-ORDER BY sessions_instructors_table.s_date, sessions_instructors_table.start_time;
+SELECT offering_sessions_instructor_table.s_date, offering_sessions_instructor_table.start_time, offering_sessions_instructor_table.name, COALESCE(offering_sessions_instructor_table.seating_capacity - num_reg - num_red, offering_sessions_instructor_table.seating_capacity - num_reg, offering_sessions_instructor_table.seating_capacity - num_red, offering_sessions_instructor_table.seating_capacity)::int
+FROM offering_sessions_instructor_table NATURAL LEFT JOIN num_registrations_for_each_session NATURAL LEFT JOIN num_redemptions_for_each_session 
+WHERE COALESCE(offering_sessions_instructor_table.seating_capacity  - num_reg - num_red, offering_sessions_instructor_table.seating_capacity  - num_reg, offering_sessions_instructor_table.seating_capacity  - num_red, offering_sessions_instructor_table.seating_capacity) > 0
+ORDER BY offering_sessions_instructor_table.s_date, offering_sessions_instructor_table.start_time;
 END;
 $$ LANGUAGE plpgsql;
 

@@ -10,7 +10,7 @@ BEGIN
     END IF;
     SELECT seating_capacity INTO r_capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
     SELECT seating_capacity INTO o_capacity FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
-    UPDATE Offerings SET seating_capacity = o_capacity + r_capacity WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+    UPDATE Offerings SET seating_capacity = COALESCE(o_capacity + r_capacity, r_capacity) WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -24,10 +24,28 @@ DECLARE
   num_remaining_redemptions INTEGER;
   sale_start DATE;
   sale_end DATE;
+  num_active_packages INTEGER;
+  num_partial_active_packages INTEGER;
 BEGIN
   SELECT sale_start_date, sale_end_date INTO sale_start, sale_end FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   IF (NEW.buy_date < sale_start OR NEW.buy_date > sale_end) THEN
     RAISE EXCEPTION 'Unable to purchase course package. % buy date not within % and %', NEW.buy_date, sale_start_date, sale_end_date;
+  END IF;
+
+  SELECT COUNT(Buys.package_id) INTO num_active_packages
+  FROM Buys NATURAL LEFT JOIN Redeems  
+  WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions > 0;
+
+  IF (num_active_packages > 0) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has active course', NEW.cust_id;
+  END IF;
+
+  SELECT COUNT(Buys.package_id) INTO num_partial_active_packages
+  FROM Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions 
+  WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7;
+
+  IF (num_partial_active_packages > 0) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has partial active course', NEW.cust_id;
   END IF;
   SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
@@ -39,12 +57,12 @@ CREATE TRIGGER before_insert_buys_trigger
 BEFORE INSERT ON Buys
 FOR EACH ROW EXECUTE FUNCTION before_insert_buys();
 ---------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION before_insert_offering() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION before_update_offering() RETURNS TRIGGER AS $$
 DECLARE
   days_diff INTEGER;
 BEGIN
   SELECT (NEW.start_date - NEW.registration_deadline) INTO days_diff;
-  IF (days_diff >= 10) THEN
+  IF (days_diff >= 10 AND days_diff IS NOT NULL) THEN
     RETURN NEW;
   ELSE
     RAISE EXCEPTION 'registration deadline for a course offering must be at least 10 days before its start date';
@@ -52,9 +70,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER before_insert_offering_trigger
-BEFORE INSERT ON Offerings
-FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
+CREATE TRIGGER before_update_offering_trigger
+BEFORE UPDATE ON Offerings
+FOR EACH ROW EXECUTE FUNCTION before_update_offering();
 ---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION before_update_or_insert_session() RETURNS TRIGGER AS $$
 DECLARE
@@ -198,7 +216,7 @@ BEGIN
 
   UPDATE Offerings SET seating_capacity = current_remaining_seats_offering - 1 
   WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
