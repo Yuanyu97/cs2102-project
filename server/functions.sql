@@ -272,14 +272,19 @@ BEGIN
         hours INT[]
     );
 LOOP
-    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations - X.num_redeems, Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity - X.num_redeems, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
-    FROM Rooms 
+    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - registersTable.num_registrations - redeemsTable.num_redeems, Rooms.seating_capacity - registersTable.num_registrations, Rooms.seating_capacity - redeemsTable.num_redeems, Rooms.seating_capacity) as r_capacity, COALESCE(redeemsTable.sid, registersTable.sid) AS sid, COALESCE(redeemsTable.course_id, registersTable.course_id) AS course_id, COALESCE(redeemsTable.launch_date, registersTable.launch_date) AS launch_date FROM Rooms 
     LEFT JOIN (
-        SELECT COUNT(Registers.cust_id) as num_registrations, COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
-        FROM Conducts NATURAL JOIN Sessions LEFT JOIN Registers ON Conducts.sid = Registers.sid AND Conducts.launch_date = Registers.launch_date AND Conducts.course_id = Registers.course_id LEFT JOIN Redeems ON Conducts.sid = Redeems.sid AND Conducts.launch_date = Redeems.launch_date AND Conducts.course_id = Redeems.course_id
+        SELECT COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
+        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Redeems 
         WHERE Sessions.s_date = curr_date
-        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid) AS X 
-        ON Rooms.rid = X.rid;
+        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
+    ) AS redeemsTable ON Rooms.rid = redeemsTable.rid
+    FULL OUTER JOIN (
+        SELECT COUNT(Registers.cust_id) as num_registrations, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
+        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Registers
+        WHERE Sessions.s_date = curr_date
+        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
+    ) registersTable ON redeemsTable.rid = registersTable.rid;
     LOOP
         FETCH curs INTO r;
         EXIT WHEN NOT FOUND;
@@ -451,12 +456,12 @@ BEGIN
     );
 
     OPEN curs1 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
-        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions LEFT JOIN Courses ON Sessions.course_id = Courses.course_id NATURAL LEFT JOIN Course_packages
         WHERE Buys.cust_id = c_id AND num_remaining_redemptions > 0 
         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
 
     OPEN curs2 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
-        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions LEFT JOIN Courses ON Sessions.course_id = Courses.course_id NATURAL LEFT JOIN Course_packages
         WHERE Buys.cust_id = c_id AND num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7
         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
     LOOP

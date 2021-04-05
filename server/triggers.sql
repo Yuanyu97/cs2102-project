@@ -33,7 +33,7 @@ BEGIN
   END IF;
 
   SELECT COUNT(Buys.package_id) INTO num_active_packages
-  FROM Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id  
+  FROM Buys NATURAL LEFT JOIN Redeems  
   WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions > 0;
 
   IF (num_active_packages > 0) THEN
@@ -41,7 +41,7 @@ BEGIN
   END IF;
 
   SELECT COUNT(Buys.package_id) INTO num_partial_active_packages
-  FROM Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date
+  FROM Buys NATURAL LEFT JOIN Redeems NATURAL LEFT JOIN Sessions 
   WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7;
 
   IF (num_partial_active_packages > 0) THEN
