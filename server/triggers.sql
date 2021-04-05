@@ -18,7 +18,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER before_insert_update_conducts_trigger
 BEFORE INSERT OR UPDATE ON Conducts
 FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts();
-
 ---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
 DECLARE
@@ -44,7 +43,7 @@ CREATE OR REPLACE FUNCTION before_insert_offering() RETURNS TRIGGER AS $$
 DECLARE
   days_diff INTEGER;
 BEGIN
-  SELECT (NEW.start_date - OLD.registration_deadline) INTO days_diff;
+  SELECT (NEW.start_date - NEW.registration_deadline) INTO days_diff;
   IF (days_diff >= 10) THEN
     RETURN NEW;
   ELSE
@@ -54,9 +53,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER before_insert_offering_trigger
-BEFORE UPDATE ON Offerings
+BEFORE INSERT ON Offerings
 FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
-
 ---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION before_update_or_insert_session() RETURNS TRIGGER AS $$
 DECLARE
@@ -97,6 +95,41 @@ CREATE TRIGGER before_update_or_insert_session_trigger
 BEFORE INSERT OR UPDATE ON Sessions
 FOR EACH ROW EXECUTE FUNCTION before_update_or_insert_session();
 ---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION before_insert_redeems() RETURNS TRIGGER AS $$
+DECLARE
+  num_redemptions_left INTEGER;
+  sess_total_capacity INTEGER;
+  num_red INTEGER;
+  num_reg INTEGER;
+BEGIN
+  SELECT num_remaining_redemptions INTO num_redemptions_left FROM Buys WHERE Buys.cust_id = NEW.cust_id AND Buys.buy_date = NEW.buy_date AND Buys.package_id = NEW.package_id;
+  IF (num_redemptions_left = 0) THEN
+    RAISE EXCEPTION 'Failed to redeem due to insufficient remaining redemptions with redemption info: Cust id %, Package id: %, Buy Date: %', NEW.cust_id, NEW.package_id, NEW.buy_date;
+  END IF;
+  SELECT Rooms.seating_capacity INTO sess_total_capacity
+  FROM Conducts LEFT JOIN Rooms ON Conducts.rid = Rooms.rid
+  WHERE Conducts.sid = NEW.sid AND Conducts.course_id = NEW.course_id AND Conducts.launch_date = NEW.launch_date
+  LIMIT 1;
+
+  SELECT COUNT(Registers.cust_id) INTO num_reg 
+  FROM Registers
+  WHERE Registers.sid = NEW.sid AND Registers.course_id = NEW.sid AND Registers.launch_date = NEW.launch_date;
+
+  SELECT COUNT(Redeems.cust_id)INTO num_red
+  FROM Redeems
+  WHERE Redeems.sid = NEW.sid AND Redeems.course_id = NEW.sid AND Redeems.launch_date = NEW.launch_date;
+
+  IF (sess_total_capacity - num_reg - num_red = 0) THEN
+    RAISE EXCEPTION 'Could not redeem session. Max capacity reached';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_insert_redeems_trigger 
+BEFORE INSERT ON Redeems
+FOR EACH ROW EXECUTE FUNCTION before_insert_redeems();
+---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION after_insert_redeems() RETURNS TRIGGER AS $$
 DECLARE
   current_remaining_seats_offering INTEGER;
@@ -124,23 +157,19 @@ CREATE TRIGGER after_insert_redeems_trigger
 AFTER INSERT ON Redeems
 FOR EACH ROW EXECUTE FUNCTION after_insert_redeems();
 ---------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION before_insert_redeems() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION before_insert_registers() RETURNS TRIGGER AS $$
 DECLARE
-  num_redemptions_left INTEGER;
   sess_total_capacity INTEGER;
   num_red INTEGER;
   num_reg INTEGER;
 BEGIN
-  SELECT num_remaining_redemptions INTO num_redemptions_left FROM Buys WHERE Buys.cust_id = NEW.cust_id AND Buys.buy_date = NEW.buy_date AND Buys.package_id = NEW.package_id;
-  IF (num_redemptions_left = 0) THEN
-    RAISE EXCEPTION 'Failed to redeem due to insufficient remaining redemptions with redemption info: Cust id %, Package id: %, Buy Date: %', NEW.cust_id, NEW.package_id, NEW.buy_date;
-  END IF;
   SELECT Rooms.seating_capacity INTO sess_total_capacity
   FROM Conducts LEFT JOIN Rooms ON Conducts.rid = Rooms.rid
   WHERE Conducts.sid = NEW.sid AND Conducts.course_id = NEW.course_id AND Conducts.launch_date = NEW.launch_date
   LIMIT 1;
 
-  SELECT COUNT(Registers.cust_id) INTO num_reg FROM Registers
+  SELECT COUNT(Registers.cust_id) INTO num_reg 
+  FROM Registers
   WHERE Registers.sid = NEW.sid AND Registers.course_id = NEW.sid AND Registers.launch_date = NEW.launch_date;
 
   SELECT COUNT(Redeems.cust_id)INTO num_red
@@ -148,13 +177,33 @@ BEGIN
   WHERE Redeems.sid = NEW.sid AND Redeems.course_id = NEW.sid AND Redeems.launch_date = NEW.launch_date;
 
   IF (sess_total_capacity - num_reg - num_red = 0) THEN
-    RAISE EXCEPTION 'Could not redeem session. Max capacity reached';
+    RAISE EXCEPTION 'Could not register session. Max capacity reached';
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER before_insert_redeems_trigger 
-BEFORE INSERT ON Redeems
-FOR EACH ROW EXECUTE FUNCTION before_insert_redeems();
+CREATE TRIGGER before_insert_registers_trigger 
+BEFORE INSERT ON Registers
+FOR EACH ROW EXECUTE FUNCTION before_insert_registers();
+---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION after_insert_registers() RETURNS TRIGGER AS $$
+DECLARE
+  current_remaining_seats_offering INTEGER;
+  current_remaining_redemptions INTEGER;
+BEGIN
+
+  SELECT seating_capacity INTO current_remaining_seats_offering FROM Offerings
+  WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+
+  UPDATE Offerings SET seating_capacity = current_remaining_seats_offering - 1 
+  WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_insert_registers_trigger 
+AFTER INSERT ON Registers
+FOR EACH ROW EXECUTE FUNCTION after_insert_registers();
 ---------------------------------------------------------------------------------

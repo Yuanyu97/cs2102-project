@@ -146,8 +146,8 @@ INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootca
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Data Structures and Algorithms', 1, 'CS2040S', 'Java');
 
-INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', 60, '2021-04-25', 99.99, 3);
-INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', 100, '2022-07-20', 59.99, 4);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', '2021-05-05', '2021-05-06', 60, '2021-04-25', 99.99, 3);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', '2022-08-05', '2022-08-05', 100, '2022-07-20', 59.99, 4);
 
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-05-05', 14, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2021-05-06', 10, 1, '2021-04-11');
