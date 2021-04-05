@@ -539,9 +539,10 @@ RETURNS TABLE (
     session_date DATE,
     start_hour INTEGER,
     instructor_name TEXT,
-    remaining_seats INTEGER,
-    reg_deadline DATE
+    remaining_seats INTEGER
 ) AS $$
+DECLARE
+    reg_deadline DATE;
 BEGIN
 SELECT registration_deadline INTO reg_deadline 
 FROM Offerings 
