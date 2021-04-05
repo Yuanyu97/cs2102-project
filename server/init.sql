@@ -1,7 +1,7 @@
 drop table if exists Rooms, Customers, Credit_cards, Course_packages, Buys,
  Employees, Part_Time_Emp, Full_Time_Emp, Instructors, Part_Time_Instructor,
  Full_Time_Instructor, Managers, Administrators, Course_areas, Courses, Offerings,
- Sessions, Cancels, Registers, Redeems, Pay_slips_for, Specializes cascade; 
+ Sessions, Cancels, Registers, Redeems, Pay_slips_for cascade; 
 
 -- checked
 CREATE TABLE Rooms (
@@ -131,7 +131,7 @@ CREATE TABLE Full_Time_Instructor (
 -- checked
 CREATE TABLE Courses (
   course_id SERIAL PRIMARY KEY,
-  title text,
+  title text NOT NULL,
   duration integer,
   description text,
   area_name text NOT NULL REFERENCES Course_areas
@@ -139,12 +139,11 @@ CREATE TABLE Courses (
 
 -- checked
 CREATE TABLE Offerings (
-  offering_id SERIAL UNIQUE NOT NULL,
   course_id integer REFERENCES Courses ON DELETE CASCADE,
   launch_date DATE,
   start_date DATE,
   end_date DATE,
-  target_number_registrations integer,
+  target_number_registrations integer DEFAULT 0,
   seating_capacity integer,
   registration_deadline DATE,
   fees NUMERIC,
@@ -159,19 +158,17 @@ CREATE TABLE Offerings (
 
 -- checked SUSS day, hour spoil. ER no good
 CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
-  sid serial,
+  sid INTEGER,
   s_date DATE,
-  -- integer for start hours only 9,10,11,14,15,16,17
   start_time integer,
-  -- integer for end hours 
   end_time integer,
-  -- computed at runtime
   course_id integer,
   launch_date DATE,
-  rid integer NOT NULL REFERENCES Rooms,
-  PRIMARY KEY(sid, course_id),
+  PRIMARY KEY(sid, course_id, launch_date),
   FOREIGN KEY (course_id, launch_date) REFERENCES Offerings(course_id, launch_date)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+  check (((start_time IN (9, 10, 11) AND end_time IN (10, 11, 12)) OR (start_time IN (14, 15, 16, 17) AND end_time IN (15, 16, 17, 18))) 
+    AND start_time < end_time)
   -- Combined with Consists table (WEAK ENTITIY OF OFFERING)
   -- Combined with Conducts table (Key + Total Participation Constrainteger)
 );
@@ -181,12 +178,13 @@ CREATE TABLE Conducts (
   area_name TEXT,
   rid INTEGER NOT NULL,
   sid INTEGER,
-  course_id INTEGER,
   launch_date DATE,
+  course_id INTEGER,
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
-  FOREIGN KEY (sid, course_id) REFERENCES Sessions,
-  FOREIGN KEY (course_id, launch_date) REFERENCES Offerings,
+  FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   PRIMARY KEY (iid, area_name, rid, sid, course_id)
 );
 
@@ -195,23 +193,25 @@ CREATE TABLE Cancels (
   cancel_date DATE,
   cust_id integer REFERENCES Customers,
   sid integer,
+  launch_Date DATE,
   course_id integer,
   refund_amt NUMERIC,
   package_credit integer,
   PRIMARY KEY(cancel_date, cust_id, sid, course_id),
-  FOREIGN KEY (sid, course_id) references Sessions
+  FOREIGN KEY (sid, course_id, launch_Date) references Sessions
   -- Trigger: compute package_credit from Buys.num_remaining_redemptions
 );
 
 -- checked G
 CREATE TABLE Registers (
   sid integer,
+  launch_date DATE,
   course_id integer,
   registration_date DATE,
   cust_id INTEGER,
   PRIMARY KEY(registration_date, cust_id, sid, course_id),
   FOREIGN KEY (cust_id) REFERENCES Customers,
-  FOREIGN KEY (sid, course_id) references Sessions
+  FOREIGN KEY (sid, course_id, launch_date) references Sessions
 );
 
 -- checked
@@ -225,9 +225,11 @@ CREATE TABLE Redeems (
   -- session stuff
   sid integer,
   course_id integer,
-  FOREIGN KEY (sid, course_id)  REFERENCES Sessions,
+  launch_date DATE,
+  FOREIGN KEY (sid, course_id, launch_date)  REFERENCES Sessions,
   FOREIGN KEY (buy_date, cust_id, package_id) REFERENCES Buys,
-  PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id)
+  PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id),
+  check (redeem_date >= buy_date)
 );
 
 -- checked
@@ -240,7 +242,4 @@ CREATE TABLE Pay_slips_for (
   amount NUMERIC,
   PRIMARY KEY (eid, payment_date)
 );
-
-
-
 
