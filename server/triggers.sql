@@ -24,10 +24,28 @@ DECLARE
   num_remaining_redemptions INTEGER;
   sale_start DATE;
   sale_end DATE;
+  num_active_packages INTEGER;
+  num_partial_active_packages INTEGER;
 BEGIN
   SELECT sale_start_date, sale_end_date INTO sale_start, sale_end FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   IF (NEW.buy_date < sale_start OR NEW.buy_date > sale_end) THEN
     RAISE EXCEPTION 'Unable to purchase course package. % buy date not within % and %', NEW.buy_date, sale_start_date, sale_end_date;
+  END IF;
+
+  SELECT COUNT(Buys.package_id) INTO num_active_packages
+  FROM Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id  
+  WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions > 0;
+
+  IF (num_active_packages > 0) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has active course', NEW.cust_id;
+  END IF;
+
+  SELECT COUNT(Buys.package_id) INTO num_partial_active_packages
+  FROM Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date
+  WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7;
+
+  IF (num_partial_active_packages > 0) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has partial active course', NEW.cust_id;
   END IF;
   SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
@@ -198,7 +216,7 @@ BEGIN
 
   UPDATE Offerings SET seating_capacity = current_remaining_seats_offering - 1 
   WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
