@@ -10,7 +10,7 @@ BEGIN
     END IF;
     SELECT seating_capacity INTO r_capacity FROM Rooms WHERE Rooms.rid = NEW.rid;
     SELECT seating_capacity INTO o_capacity FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
-    UPDATE Offerings SET seating_capacity = o_capacity + r_capacity WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+    UPDATE Offerings SET seating_capacity = COALESCE(o_capacity + r_capacity, r_capacity) WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -57,12 +57,12 @@ CREATE TRIGGER before_insert_buys_trigger
 BEFORE INSERT ON Buys
 FOR EACH ROW EXECUTE FUNCTION before_insert_buys();
 ---------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION before_insert_offering() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION before_update_offering() RETURNS TRIGGER AS $$
 DECLARE
   days_diff INTEGER;
 BEGIN
   SELECT (NEW.start_date - NEW.registration_deadline) INTO days_diff;
-  IF (days_diff >= 10) THEN
+  IF (days_diff >= 10 AND days_diff IS NOT NULL) THEN
     RETURN NEW;
   ELSE
     RAISE EXCEPTION 'registration deadline for a course offering must be at least 10 days before its start date';
@@ -70,9 +70,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER before_insert_offering_trigger
-BEFORE INSERT ON Offerings
-FOR EACH ROW EXECUTE FUNCTION before_insert_offering();
+CREATE TRIGGER before_update_offering_trigger
+BEFORE UPDATE ON Offerings
+FOR EACH ROW EXECUTE FUNCTION before_update_offering();
 ---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION before_update_or_insert_session() RETURNS TRIGGER AS $$
 DECLARE
