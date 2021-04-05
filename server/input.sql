@@ -141,17 +141,22 @@ INSERT INTO Instructors VALUES(4, 'Java');
 INSERT INTO Instructors VALUES(5, 'Python');
 INSERT INTO Instructors VALUES(5, 'C++');
 INSERT INTO Instructors VALUES(3, 'R');
+INSERT INTO Instructors VALUES(6, 'Java');
 
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 2, 'Java for beginners', 'Java');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Data Structures and Algorithms', 1, 'CS2040S', 'Java');
 
+
 INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', '2021-05-05', '2021-05-06', 60, '2021-04-25', 99.99, 3);
 INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', '2022-08-05', '2022-08-05', 100, '2022-07-20', 59.99, 4);
+INSERT INTO Offerings(course_id, launch_date, start_date, end_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-11', '2022-08-05', '2022-08-05', 80, '2022-07-20', 89.99, 4);
 
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-05-05', 14, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2021-05-06', 10, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2022-08-05', 9, 2, '2022-07-10');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2022-08-05', 14, 2, '2022-07-10');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(3, '2022-08-08', 9, 2, '2022-07-11');
 
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 1, '2021-04-11', 1, 1);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 2, '2021-04-11', 1, 3);
@@ -160,8 +165,12 @@ INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (3
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 2);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 4);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 3);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, CURRENT_DATE, 3);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, CURRENT_DATE, 4);
 
 INSERT INTO Buys(buy_date, cust_id, package_id) VALUES (CURRENT_DATE, 3, 1);
 
 INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 1, '2021-04-11');
 INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 2, 1, '2021-04-11');
+INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 2, '2022-07-10');
