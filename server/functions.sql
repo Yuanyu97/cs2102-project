@@ -221,11 +221,129 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION get_available_instructors(
+-- CREATE OR REPLACE FUNCTION get_available_instructors(
+--     cid INTEGER,
+--     course_start_date DATE,
+--     course_end_date DATE
+-- ) RETURNS TABLE(emp_id INTEGER, emp_name TEXT, emp_total_hours INTEGER, emp_avail_day DATE, emp_avail_hours INT[]) AS $$
+-- DECLARE
+--     r RECORD;
+--     date_diff INTEGER;
+--     counter_date INTEGER;
+--     counter_hours INTEGER;
+--     current_date DATE;
+--     avail_hours INTEGER[];
+-- BEGIN
+--     CREATE OR REPLACE VIEW SpecializingInstructors AS (
+--         SELECT DISTINCT ftid AS iid
+--         FROM Full_Time_Instructor FT
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE cid = C.course_id AND C.area_name = FT.area_name
+--         )
+--         UNION
+--         SELECT DISTINCT ptid AS iid
+--         FROM Part_Time_Instructor PT
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE cid = C.course_id  AND C.area_name = PT.area_name
+--         )
+--         UNION
+--         SELECT DISTINCT iid
+--         FROM Instructors I
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE cid = C.course_id AND C.area_name = I.area_name
+--         )
+--     );
+--     CREATE OR REPLACE VIEW ConductsAndSessions AS (
+--         SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
+--         FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
+--         ORDER BY iid, s_date
+--     );
+--     CREATE OR REPLACE VIEW InstructorsWhoTeachThisMonth AS (
+--         SELECT iid, start_time, end_time
+--         FROM ConductsAndSessions
+--         WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+--     );
+--     CREATE OR REPLACE VIEW InstructorsWhoDoesNotTeachThisMonth AS (
+--         SELECT iid, 0 AS teaching_hours
+--         FROM (SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM InstructorsWhoTeachThisMonth) AS X
+--     );
+--     CREATE OR REPLACE VIEW InstructorsHoursOfTheMonth AS (
+--         SELECT iid, SUM(end_time - start_time) AS teaching_hours
+--         FROM InstructorsWhoTeachThisMonth
+--         GROUP BY iid
+--         UNION
+--         SELECT iid, teaching_hours
+--         FROM InstructorsWhoDoesNotTeachThisMonth
+--     );
+
+--     date_diff := course_end_date - course_start_date;   
+--     FOR r in 
+--         SELECT DISTINCT ftid AS iid
+--         FROM Full_Time_Instructor FT
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE C.course_id = cid AND C.area_name = FT.area_name
+--         )
+--         UNION
+--         SELECT DISTINCT ptid AS iid
+--         FROM Part_Time_Instructor PT
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE C.course_id = cid AND C.area_name = PT.area_name
+--         )
+--         UNION
+--         SELECT DISTINCT iid
+--         FROM Instructors I
+--         WHERE EXISTS (
+--             SELECT 1
+--             FROM Courses C
+--             WHERE C.course_id = cid AND C.area_name = I.area_name
+--         )
+--     LOOP
+--         --FETCH curs INTO r;
+--         --EXIT WHEN NOT FOUND;
+--         current_date := course_start_date;
+--         FOR counter_date IN 1..date_diff
+--         LOOP
+            -- avail_hours := "{}";
+            -- FOR counter_hours in 9..17 
+            -- LOOP
+            --     CONTINUE WHEN counter_hours = 12 OR counter_hours = 13 OR 
+            --         EXISTS(
+            --             SELECT 1 
+            --             FROM ConductsAndSessions C
+            --             WHERE r.iid = C.iid AND C.s_date = current_date AND C.start_time <= counter_hours AND counter_hours <= C.end_time
+            --         );
+            --     avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
+--             END LOOP;
+--             RETURN QUERY
+--             SELECT r.iid, (SELECT name FROM Employees WHERE eid = r.iid), 
+--                 (SELECT teaching_hours FROM InstructorsHoursOfTheMonth WHERE iid = r.iid), current_date, avail_hours;
+--         END LOOP;
+--         current_date := current_date + 1;
+--     END LOOP; 
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_available_instructors (
     cid INTEGER,
     course_start_date DATE,
     course_end_date DATE
-) RETURNS TABLE(emp_id INTEGER, emp_name TEXT, emp_total_hours INTEGER, emp_avail_day DATE, emp_avail_hours INT[]) AS $$
+) RETURNS TABLE (
+    emp_id INTEGER,
+    emp_name TEXT,
+    emp_total_teaching_hours_for_current_month BIGINT,
+    emp_avail_day DATE,
+    emp_avail_hours INTEGER[]
+) AS $$
 DECLARE
     r RECORD;
     date_diff INTEGER;
@@ -234,102 +352,139 @@ DECLARE
     current_date DATE;
     avail_hours INTEGER[];
 BEGIN
-    CREATE OR REPLACE VIEW SpecializingInstructors AS (
+    date_diff := course_end_date - course_start_date; 
+    FOR r IN WITH SpecializingInstructors AS (
         SELECT DISTINCT ftid AS iid
-        FROM Full_Time_Instructor FT
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE cid = C.course_id AND C.area_name = FT.area_name
-        )
-        UNION
-        SELECT DISTINCT ptid AS iid
-        FROM Part_Time_Instructor PT
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE cid = C.course_id  AND C.area_name = PT.area_name
-        )
-        UNION
-        SELECT DISTINCT iid
-        FROM Instructors I
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE cid = C.course_id AND C.area_name = I.area_name
-        )
-    );
-    CREATE OR REPLACE VIEW ConductsAndSessions AS (
-        SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
-        FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
-        ORDER BY iid, s_date
-    );
-    CREATE OR REPLACE VIEW InstructorsWhoTeachThisMonth AS (
-        SELECT iid, start_time, end_time
-        FROM ConductsAndSessions
-        WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-    );
-    CREATE OR REPLACE VIEW InstructorsWhoDoesNotTeachThisMonth AS (
+            FROM Full_Time_Instructor FT
+            WHERE EXISTS (
+                SELECT 1
+                FROM Courses C
+                WHERE C.course_id = cid AND C.area_name = FT.area_name
+            )
+            UNION
+            SELECT DISTINCT ptid AS iid
+            FROM Part_Time_Instructor PT
+            WHERE EXISTS (
+                SELECT 1
+                FROM Courses C
+                WHERE C.course_id = cid AND C.area_name = PT.area_name
+            )
+            UNION
+            SELECT DISTINCT iid
+            FROM Instructors I
+            WHERE EXISTS (
+                SELECT 1
+                FROM Courses C
+                WHERE C.course_id = cid AND C.area_name = I.area_name
+            )
+        ),
+        ConductsAndSessions AS (
+            SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
+            FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
+            ORDER BY iid, s_date
+        ),
+        InstructorsWhoTeachThisMonth AS (
+            SELECT iid, start_time, end_time
+            FROM ConductsAndSessions
+            WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+        ),
+        InstructorsWhoDoesNotTeachThisMonth AS (
         SELECT iid, 0 AS teaching_hours
         FROM (SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM InstructorsWhoTeachThisMonth) AS X
-    );
-    CREATE OR REPLACE VIEW InstructorsHoursOfTheMonth AS (
-        SELECT iid, SUM(end_time - start_time) AS teaching_hours
-        FROM InstructorsWhoTeachThisMonth
-        GROUP BY iid
-        UNION
-        SELECT iid, teaching_hours
-        FROM InstructorsWhoDoesNotTeachThisMonth
-    );
-
-    date_diff := course_end_date - course_start_date;   
-    FOR r in 
-        SELECT DISTINCT ftid AS iid
-        FROM Full_Time_Instructor FT
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE C.course_id = cid AND C.area_name = FT.area_name
+        ),
+        InstructorsHoursOfTheMonth AS (
+            SELECT iid, SUM(end_time - start_time) AS teaching_hours
+            FROM InstructorsWhoTeachThisMonth
+            GROUP BY iid
+            UNION
+            SELECT iid, teaching_hours
+            FROM InstructorsWhoDoesNotTeachThisMonth
         )
-        UNION
-        SELECT DISTINCT ptid AS iid
-        FROM Part_Time_Instructor PT
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE C.course_id = cid AND C.area_name = PT.area_name
-        )
-        UNION
-        SELECT DISTINCT iid
-        FROM Instructors I
-        WHERE EXISTS (
-            SELECT 1
-            FROM Courses C
-            WHERE C.course_id = cid AND C.area_name = I.area_name
-        )
+        SELECT iid, name
+        FROM 
+            (SpecializingInstructors INNER JOIN Employees ON iid = eid) AS X
     LOOP
-        --FETCH curs INTO r;
-        --EXIT WHEN NOT FOUND;
-        current_date := course_start_date;
         FOR counter_date IN 1..date_diff
         LOOP
-            avail_hours := "{}";
-            FOR counter_hours in 9..17 
+            --avail_hours := "{}";
+            FOR counter_hours in 9..17
             LOOP
                 CONTINUE WHEN counter_hours = 12 OR counter_hours = 13 OR 
                     EXISTS(
                         SELECT 1 
-                        FROM ConductsAndSessions C
-                        WHERE r.iid = C.iid AND C.s_date = current_date AND C.start_time <= counter_hours AND counter_hours <= C.end_time
+                        FROM (
+                                SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
+                                FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
+                                ORDER BY iid, s_date) as Y
+                        WHERE r.iid = Y.iid AND Y.s_date = current_date AND Y.start_time <= counter_hours AND counter_hours <= Y.end_time
                     );
                 avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
             END LOOP;
             RETURN QUERY
-            SELECT r.iid, (SELECT name FROM Employees WHERE eid = r.iid), 
-                (SELECT teaching_hours FROM InstructorsHoursOfTheMonth WHERE iid = r.iid), current_date, avail_hours;
-        END LOOP;
-        current_date := current_date + 1;
-    END LOOP; 
+            SELECT r.iid, r.name, (
+                SELECT teaching_hours 
+                FROM 
+                    (
+                        SELECT iid, SUM(end_time - start_time) AS teaching_hours
+                        FROM (
+                            SELECT iid, start_time, end_time
+                            FROM (
+                                SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
+                                FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
+                                ORDER BY iid, s_date
+                            ) AS ConductsAndSessions
+                            WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+                        ) AS InstructorsWhoTeachThisMonth
+                        GROUP BY iid
+                        UNION
+                        SELECT iid, teaching_hours
+                        FROM (
+                            SELECT iid, 0 AS teaching_hours
+                            FROM (
+                                SELECT iid 
+                                FROM (
+                                    SELECT DISTINCT ftid AS iid
+                                    FROM Full_Time_Instructor FT
+                                    WHERE EXISTS (
+                                        SELECT 1
+                                        FROM Courses C
+                                        WHERE C.course_id = cid AND C.area_name = FT.area_name
+                                    )
+                                    UNION
+                                    SELECT DISTINCT ptid AS iid
+                                    FROM Part_Time_Instructor PT
+                                    WHERE EXISTS (
+                                        SELECT 1
+                                        FROM Courses C
+                                        WHERE C.course_id = cid AND C.area_name = PT.area_name
+                                    )
+                                    UNION
+                                    SELECT DISTINCT iid
+                                    FROM Instructors I
+                                    WHERE EXISTS (
+                                        SELECT 1
+                                        FROM Courses C
+                                        WHERE C.course_id = cid AND C.area_name = I.area_name
+                                    )
+                                ) AS SpecializingInstructors2
+                                EXCEPT 
+                                SELECT iid 
+                                FROM (
+                                    SELECT iid, start_time, end_time
+                                    FROM (
+                                        SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
+                                        FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
+                                        ORDER BY iid, s_date
+                                    ) AS ConductsAndSessions
+                                    WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+                                ) AS InstructorsWhoTeachThisMonth2
+                            ) AS X
+                        ) AS InstructorsWhoDoesNotTeachThisMonth
+                    ) AS InstructorsHoursOfTheMonth
+                WHERE iid = r.iid), course_start_date + counter_date, avail_hours;
+            --current_date := current_date + 1;
+        END LOOP; 
+    END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
