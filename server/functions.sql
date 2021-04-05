@@ -74,7 +74,7 @@ CREATE OR REPLACE PROCEDURE remove_employee (
     emp_depart_date DATE
 ) AS $$
     WITH SessionsAndInstructors AS (
-        SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id
+        SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
     )
     UPDATE Employees 
     SET depart_date = emp_depart_date
@@ -246,6 +246,145 @@ CREATE OR REPLACE FUNCTION find_rooms (
     SELECT rid FROM NotAvailableRooms;
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION get_available_rooms(
+start_date DATE,
+end_date DATE
+) RETURNS TABLE (
+    r_id INTEGER,
+    r_capacity INTEGER,
+    day DATE,
+    hours INT[]
+) AS $$
+DECLARE
+    curs refcursor;
+    r RECORD;
+    curr_date DATE := start_date;
+    start_hour_1 INTEGER := 9;
+    start_hour_2 INTEGER := 14;
+    arr INT[];
+    start_hour INTEGER;
+    end_hour INTEGER;
+BEGIN
+    CREATE TEMPORARY TABLE output_table(
+        r_id INTEGER,
+        r_capacity INTEGER,
+        day DATE,
+        hours INT[]
+    );
+LOOP
+    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
+    FROM Rooms 
+    LEFT JOIN (
+        SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.sid, Sessions.course_id, Sessions.launch_date, Sessions.rid
+        FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
+        WHERE Sessions.s_date = curr_date
+        GROUP BY Sessions.course_id, Sessions.launch_date, Sessions.sid) AS X 
+        ON Rooms.rid = X.rid;
+    LOOP
+        FETCH curs INTO r;
+        EXIT WHEN NOT FOUND;
+            LOOP
+                IF (r.r_capacity = 0) THEN
+                    EXIT;
+                END IF;
+                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
+                IF (start_hour IS NULL AND end_hour IS NULL) THEN
+                    arr := array_cat(arr, ARRAY[9, 10, 11]);
+                    EXIT;
+                END IF;
+                IF (start_hour_1 < start_hour OR start_hour_1 > end_hour) THEN
+                    arr := array_append(arr, start_hour_1);
+                END IF;
+                start_hour_1 := start_hour_1 + 1;
+                IF (start_hour_1 > 11) THEN
+                    start_hour_1 := 9;
+                    EXIT;
+                END IF;
+            END LOOP;
+            LOOP
+                IF (r.r_capacity = 0) THEN
+                    EXIT;
+                END IF;
+                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
+                IF (start_hour IS NULL AND end_hour IS NULL) THEN
+                    arr := array_cat(arr, ARRAY[14, 15, 16, 17, 18]);
+                    EXIT;
+                END IF;
+                IF (start_hour_2 < start_hour OR start_hour_2 > end_hour) THEN
+                    arr := array_append(arr, start_hour_2);
+                END IF;
+                start_hour_2 := start_hour_2 + 1;
+                IF (start_hour_2 > 18) THEN
+                    start_hour_2 := 14;
+                    EXIT;
+                END IF;
+            END LOOP;
+            INSERT INTO output_table VALUES(r.rid, r.r_capacity, curr_date, arr);
+            arr := NULL;
+    END LOOP;
+    CLOSE curs;
+    curr_date := curr_date + 1;
+    EXIT WHEN curr_date > end_date;
+END LOOP;
+    RETURN QUERY
+    SELECT * FROM output_table ORDER BY r_id, day;
+    DROP TABLE output_table;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE add_course_offering(
+	c_id INTEGER,
+	c_fees NUMERIC,
+	l_Date DATE,
+	reg_deadline DATE,
+	target INTEGER,
+	a_id INTEGER,
+	arr session_array[]
+) AS $$
+DECLARE
+	seating_capacity INTEGER = 0;
+	temp_seating_capacity INTEGER;
+	i session_array;
+    instructor_id INTEGER;
+    c_duration INTEGER;
+    r_id INTEGER;
+    c_area TEXT;
+    sess_id INTEGER = 0;
+BEGIN
+	FOREACH i IN ARRAY arr --finding num_sess and total seating capacity
+	LOOP
+		SELECT Rooms.seating_capacity INTO temp_seating_capacity FROM Rooms WHERE i.rid = Rooms.rid; 
+		seating_capacity := seating_capacity + temp_seating_capacity;
+	END LOOP;
+	IF (seating_capacity < target) THEN
+		RAISE EXCEPTION 'Total seating capacity % must be greater or equal to target num reg', seating_capacity;
+	END IF;
+    SELECT duration, area_name INTO c_duration, c_area FROM Courses WHERE Courses.course_id = c_id;
+    INSERT INTO Offerings (course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (c_id, l_date, target, reg_deadline, c_fees, a_id);
+    FOREACH i IN ARRAY arr
+    LOOP --checking if each session can be assigned an instructor, or is the room available
+        sess_id := sess_id + 1;
+        INSERT INTO Sessions (sid, s_date, start_time, end_time, course_id, launch_date, rid) VALUES(sess_id, i.s_date, i.s_start, i.s_start + c_duration, c_id, l_date, i.rid);
+        RAISE NOTICE 'sid: %', sess_id;
+        SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
+        IF (instructor_id IS NULL) THEN
+            DELETE FROM Offerings WHERE Offerings.launch_Date= l_date AND Offerings.course_id = c_id;
+            RAISE EXCEPTION 'No instructor available to teach session where session date is %, session time is %', i.s_date, i.s_start;
+        END IF;
+        SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, c_duration) WHERE room_id = i.rid;
+        IF (r_id IS NULL) THEN
+            DELETE FROM Offerings WHERE Offerings.launch_Date= l_date AND Offerings.course_id = c_id;
+            RAISE EXCEPTION 'Room % is not avaiable for session', i.rid;
+        ELSE
+            INSERT INTO Conducts (iid, area_name, sid, launch_date, course_id, rid) VALUES (instructor_id, c_area, sess_id, l_date, c_id, r_id);
+            instructor_id := NULL;
+            r_id := NULL;
+        END IF;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE PROCEDURE add_course_package(
 package_name TEXT,
 num_free_registrations INTEGER,
@@ -283,6 +422,190 @@ END IF;
 END;
 $$ LANGUAGE plpgsql;
 
+
+CREATE OR REPLACE FUNCTION get_my_course_package(
+    c_id INTEGER
+) RETURNS TABLE (
+    j JSON --package name, purchase date, price of package, number of free sessions included in the package, 
+    -- number of sessions that have not been redeemed, 
+    -- and information for each redeemed session (course name, session date, session start hour)
+) AS $$
+DECLARE
+    arr redeemed_session[];
+    val redeemed_session;
+    curs1 refcursor;
+    curs2 refcursor;
+    r1 RECORD;
+    r2 RECORD;
+    p_id INTEGER;
+    p_name TEXT;
+    p_date DATE;
+    p_price NUMERIC;
+    p_not_redeemed INTEGER;
+    num_rows INTEGER;
+BEGIN
+    CREATE TEMPORARY TABLE output_table(
+        package_name TEXT,
+        purchase_date DATE,
+        price_of_package NUMERIC,
+        num_sessions_not_redeemed INTEGER,
+        redeemed_sessions_info redeemed_session[]
+    );
+
+    OPEN curs1 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
+        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        WHERE Buys.cust_id = c_id AND num_remaining_redemptions > 0 
+        ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
+
+    OPEN curs2 FOR SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
+        Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+        WHERE Buys.cust_id = c_id AND num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7
+        ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time;
+    LOOP
+        FETCH curs1 INTO r1;
+        EXIT WHEN NOT FOUND;
+        p_id := r1.package_id;
+        p_name := r1.package_name;
+        p_date := r1.buy_date;
+        p_price := r1.price;
+        p_not_redeemed := r1.num_remaining_redemptions;
+        IF (r1.s_date IS NOT NULL) THEN
+            val.c_name := r1.title;
+            val.sess_date := r1.s_date;
+            val.s_hour := r1.start_time;
+            arr := array_append(arr, val);
+        END IF;
+    END LOOP;
+    IF (p_id IS NOT NULL) THEN
+        INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr);
+        p_id := NULL;
+        p_name := NULL;
+        p_date := NULL;
+        p_price := NULL;
+        p_not_redeemed := NULL;
+    END IF;
+    CLOSE curs1;
+    LOOP
+        FETCH curs2 INTO r2;
+        EXIT WHEN NOT FOUND;
+        p_id := r2.package_id;
+        p_name := r2.package_name;
+        p_date := r2.buy_date;
+        p_price := r2.price;
+        p_not_redeemed := r2.num_remaining_redemptions;
+        IF (r2.s_date IS NOT NULL) THEN
+            val.c_name := r1.title;
+            val.sess_date := r1.s_date;
+            val.s_hour := r1.start_time;
+            arr := array_append(arr, val);
+        END IF;
+    END LOOP;
+    IF (p_id IS NOT NULL) THEN
+        INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr);
+    END IF;
+    CLOSE curs2;
+    SELECT COUNT(package_name) INTO num_rows FROM output_table;
+    IF (num_rows = 0) THEN
+        RAISE EXCEPTION 'Customer % has no active or partially active packages', c_id;
+    END IF;
+    RETURN QUERY
+    SELECT row_to_json(a) FROM (SELECT * FROM output_table) a; 
+    DROP TABLE output_table;
+END;
+$$ LANGUAGE plpgsql;
+
+-- CREATE OR REPLACE FUNCTION get_my_course_package(
+--     c_id INTEGER
+-- ) RETURNS TABLE (
+--     j JSON --package name, purchase date, price of package, number of free sessions included in the package, 
+--     -- number of sessions that have not been redeemed, 
+--     -- and information for each redeemed session (course name, session date, session start hour)
+-- ) AS $$
+-- DECLARE
+--     arr redeemed_session;
+--     curs refcursor;
+--     r RECORD;
+--     p_id INTEGER;
+--     p_name TEXT;
+--     p_date DATE;
+--     p_price NUMERIC;
+--     p_not_redeemed INTEGER;
+-- BEGIN
+--     CREATE TEMPORARY TABLE output_table(
+--         package_name TEXT,
+--         purchase_date DATE,
+--         price_of_package NUMERIC,
+--         num_sessions_not_redeemed INTEGER,
+--         redeemed_sessions_info redeemed_session[]
+--     );
+--     RETURN QUERY
+--     with active_course_packages AS (
+--         SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
+--         Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+--         WHERE cust_id = c_id AND num_remaining_redemptions > 0 
+--         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time
+--     ),
+--     partially_active_pacakges AS (
+--         SELECT Buys.package_id, Course_packages.package_name, Buys.buy_date, Course_packages.price, Buys.num_remaining_redemptions, Courses.title, Sessions.s_date, Sessions.start_time FROM 
+--         Buys LEFT JOIN Redeems ON Buys.buy_date = Redeems.buy_date AND Buys.cust_id = Redeems.cust_id AND Buys.package_id = Redeems.package_id LEFT JOIN Sessions ON Redeems.sid = Sessions.sid AND Redeems.course_id = Sessions.course_id AND Redeems.launch_date = Sessions.launch_date LEFT JOIN Courses ON Sessions.course_id = Courses.course_id LEFT JOIN Course_packages ON Buys.package_id = Course_packages.package_id
+--         WHERE cust_id = c_id AND num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7
+--         ORDER BY Buys.package_id, Sessions.s_date, Sessions.start_time
+--     )
+--     OPEN curs FOR active_course_packages;
+--     LOOP
+--         FETCH curs INTO r;
+--         EXIT WHEN NOT FOUND;
+--         IF (p_id NOT NULL AND r.package_id <> p_id) THEN --diff package
+--             INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr); --insert prev info
+--             p_id := r.package_id;
+--             p_name := r.package_name;
+--             p_date := r.buy_date;
+--             p_price := r.price;
+--             p_not_redeemed := r.num_remaining_redemptions;
+--             arr := NULL;
+--             IF (r.s_date IS NOT NULL) THEN
+--                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
+--             END IF;
+--         END IF;
+--         IF (p_id NOT NULL AND r.package_id = p_id) THEN --same package
+--             IF (r.s_date IS NOT NULL) THEN
+--                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
+--             END IF;
+--         END IF;
+--         IF (p_id IS NULL) THEN --first package
+--             p_id := r.package_id;
+--             p_name := r.package_name;
+--             p_date := r.buy_date;
+--             p_price := r.price;
+--             p_not_redeemed := r.num_remaining_redemptions;
+--             IF (r.s_date IS NOT NULL) THEN
+--                 arr := array_append(arr, redeemed_session(r.title, r.s_date, r.start_time));
+--             END IF;
+--         END IF;
+--     END LOOP;
+--     IF (p_id IS NOT NULL) THEN --add last element
+--         INSERT INTO output_table VALUES (p_name, p_date, p_price, p_not_redeemed, arr);
+--             p_id := NULL;
+--             p_name := NULL;
+--             p_date := NULL;
+--             p_price := NULL;
+--             p_not_redeemed := NULL;
+--             arr := NULL;
+--     END IF;
+--     CLOSE curs;
+--     OPEN curs FOR partially_active_pacakges
+--     LOOP
+--         FETCH curs INTO r;
+--         EXIT WHEN NOT FOUND;
+        
+--     END LOOP;
+--     CLOSE curs;
+--     RETURN QUERY
+--     SELECT row_to_json(a) FROM (SELECT * FROM output_table) a; 
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION get_available_course_offerings()
 RETURNS TABLE (
 course_title TEXT,
@@ -294,7 +617,7 @@ course_fees NUMERIC,
 number_of_remaining_seats INTEGER) AS $$
 with num_registrations_for_each_session as (
 SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.launch_date
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid
+FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
 GROUP BY Sessions.course_id, Sessions.launch_date),
 offerings_join_courses as (
 SELECT Offerings.course_id, Offerings.launch_date, Courses.title as course_title, Courses.area_name as course_area, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees as course_fees, Offerings.seating_capacity
@@ -305,7 +628,7 @@ ON offerings_join_courses.course_id = num_registrations_for_each_session.course_
 WHERE registration_deadline >= CURRENT_DATE;
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION get_available_course_sessions(_offering_id INTEGER)
+CREATE OR REPLACE FUNCTION get_available_course_sessions(_course_id INTEGER, _launch_date DATE)
 RETURNS TABLE (
 session_date DATE,
 start_hour INTEGER,
@@ -317,7 +640,7 @@ l_date DATE;
 BEGIN
 SELECT course_id, launch_date INTO c_id, l_date
 FROM Offerings
-WHERE Offerings.offering_id = _offering_id;
+WHERE Offerings.course_id = _course_id AND Offerings.launch_date = _launch_date;
 RETURN QUERY
 with instructor_name_mapping AS (
 SELECT DISTINCT Instructors.iid, Employees.name
@@ -332,7 +655,7 @@ FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_nam
 ),
 num_registrations_for_each_session as (
 SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.sid
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid
+FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
 GROUP BY Sessions.course_id, Sessions.sid
 )
 SELECT sessions_instructors_table.s_date as session_date, sessions_instructors_table.start_time as start_hour, sessions_instructors_table.name as instructor_name, (sessions_instructors_table.seating_capacity - num_registrations)::int as remaining_seats
@@ -342,107 +665,276 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE PROCEDURE add_course_offering(
-	offer_id INTEGER,
-	c_id INTEGER,
-	c_fees NUMERIC,
-	l_Date DATE,
-	reg_deadline DATE,
-	target INTEGER,
-	a_id INTEGER,
-	arr session_array[]
+/** 17: Register for session
+Note:
+- credit_card registrations are not explicity recorded. 
+Testing done:
+NEGATIVE:
+[?] Course pacakge not active
+[?] Session does not exist
+[?] Payment method does not exist
+[?] Customer id does not exit
+[?] Course offering does not exist
+POSITIVE:
+[?] Redemption registration
+[?] Credit card registration
+**/
+CREATE OR REPLACE PROCEDURE register_session(
+    target_cid INTEGER, 
+    offering_course_id INTEGER,
+    offering_launch_date DATE,
+    target_sid INTEGER,
+    payment_method TEXT
 ) AS $$
 DECLARE
-	seating_capacity INTEGER = 0;
-	temp_seating_capacity INTEGER;
-	i session_array;
-    instructor_id INTEGER;
-    num_sessions INTEGER = 0;
-    c_duration INTEGER;
-    s_duration INTEGER;
-    r_id INTEGER;
-    c_area TEXT;
-    sess_id INTEGER;
+offering_registration_deadline DATE;
+offering_start_date DATE;
+offering_end_date DATE;
+target_package_id INTEGER;
+target_package_buy_date DATE;
 BEGIN
-	FOREACH i IN ARRAY arr --finding num_sess and total seating capacity
-	LOOP
-		SELECT Rooms.seating_capacity INTO temp_seating_capacity FROM Rooms WHERE i.rid = Rooms.rid; 
-		seating_capacity := seating_capacity + temp_seating_capacity;
-        num_sessions := num_sessions + 1;
-	END LOOP;
-	IF (seating_capacity < target) THEN
-		RAISE EXCEPTION 'Total seating capacity % must be greater or equal to target num reg', seating_capacity;
-	END IF;
-    SELECT duration, area_name INTO c_duration, c_area FROM Courses WHERE Courses.course_id = c_id;
-    s_duration := CEILING(c_duration / num_sessions); --finding sess duration for each sess
-    INSERT INTO Offerings (course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (c_id, l_date, target, reg_deadline, c_fees, a_id);
-    FOREACH i IN ARRAY arr
-    LOOP --checking if each session can be assigned an instructor, or is the room available
-        INSERT INTO Sessions (s_date, start_time, end_time, course_id, launch_date, rid) VALUES(i.s_date, i.s_start, i.s_start + s_duration, c_id, l_date, i.rid);
-        SELECT sid INTO sess_id FROM Sessions ORDER BY sid desc LIMIT 1;
-        RAISE NOTICE 'sid: %', sess_id;
-        SELECT inst_id INTO instructor_id FROM find_instructors(c_id, i.s_date, i.s_start) LIMIT 1;
-        IF (instructor_id IS NULL) THEN
-            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
-            RAISE EXCEPTION 'No instructor available to teach session where session date is %, session time is %', i.s_date, i.s_start;
-        END IF;
-        SELECT room_id INTO r_id FROM find_rooms(i.s_date, i.s_start, s_duration) WHERE room_id = i.rid;
-        IF (r_id IS NULL) THEN
-            DELETE FROM Offerings WHERE Offerings.offering_id = offer_id;
-            RAISE EXCEPTION 'Room % is not avaiable for session', i.rid;
-        ELSE
-            INSERT INTO Conducts (iid, area_name, sid, course_id, rid) VALUES (instructor_id, c_area, sess_id, c_id, r_id);
-            instructor_id := NULL;
-            r_id := NULL;
-        END IF;
-    END LOOP;
+
+SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
+INTO offering_registration_deadline, offering_start_date, offering_end_date
+FROM Offerings
+where Offerings.course_id = offering_course_id AND Offerings.launch_date = offering_launch_date; 
+
+-- VALIDATION
+IF (payment_method NOT in ('credit_card', 'redemption')) THEN
+RAISE EXCEPTION 'Payment method must be credit_card or redemption only';
+END IF;
+
+-- process redemption transaction
+IF (payment_method = 'redemption') THEN 
+    SELECT Buys.package_id, Buys.buy_date
+    INTO target_package_id, target_package_buy_date
+    FROM Buys
+    WHERE Buys.cust_id = target_cid AND num_remaining_redemptions > 0;
+
+    -- if no such packaage then raise exception
+    IF (target_package_id IS NULL AND target_package_buy_date IS NULL) THEN
+    RAISE EXCEPTION 'Customer does not have a active course package to redeem from';
+    END IF;
+
+    INSERT INTO Redeems (package_id, buy_date, sid, launch_date, course_id, redeem_date, cust_id) 
+    VALUES(target_package_id, target_package_buy_date, target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
+
+    UPDATE Buys
+    SET num_remaining_redemptions = num_remaining_redemptions - 1
+    WHERE 
+        Buys.cust_id = target_cid AND 
+        Buys.package_id = target_package_id AND 
+        Buys.buy_date = target_package_buy_date;
+END IF;
+
+
+-- insert into registration table
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) 
+VALUES (target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
+
 END;
 $$ LANGUAGE plpgsql;
--- seating capacity >= targer_num_reg
 
-/** 17
+/** 18: Get all customer registrations
+-- only return active registration sessions
+-- sorted in ascending order of session date and session start hour
+Testing done:
+NEGATIVE:
+[?] 
+POSITIVE:
+[?] Get all active registration and sorted in order
 **/
--- CREATE OR REPLACE PROCEDURE register_session(
---     cid INTEGER, 
---     offering_id INTEGER,
---     sid INTEGER,
---     payment_method TEXT
--- )
+CREATE OR REPLACE FUNCTION get_my_registrations(
+    target_cid INTEGER
+) RETURNS TABLE (
+    course_title TEXT, -- Courses (course title)
+    fees NUMERIC, -- Offerings
+    s_date DATE, -- Sessions
+    start_time INTEGER, -- Sessions
+    session_duration INTEGER, -- Sessions
+    instructor_name TEXT -- Employees table
+) AS $$
+BEGIN
 
-/** 18
-**/
--- -- only return active registration sessions
--- -- sorted in ascending order of session date and session start hour
--- CREATE OR REPLACE FUNCTION get_my_registrations(
---     cid INTEGER
--- ) RETURN TABLE (
---     course_title TEXT, -- Courses (course title)
---     fees NUMERIC, -- Offerings
---     s_date DATE, -- Sessions
---     start_time INTEGER, -- Sessions
---     session_duration INTEGER, -- Sessions
---     instructor_name TEXT -- Employees table
--- )
+RETURN QUERY
+SELECT Courses.title as course_title, Offerings.fees as fees, Sessions.s_date as s_date,
+Sessions.start_time as start_time, Courses.duration as session_duration, Employees.name as instructor_name
+FROM Courses, Offerings, Sessions, Employees, Registers, Conducts
+WHERE 
+Employees.eid = Conducts.iid AND
+Conducts.course_id = Registers.course_id AND
+Conducts.course_id = Sessions.course_id AND
+Conducts.launch_date = Sessions.launch_date AND
+Courses.course_id = Offerings.course_id AND
+Sessoins.s_date > current_date AND
+Sessions.course_id = Offerings.course_id AND
+Sessions.launch_date = Offerings.launch_date AND
+Registers.course_id = Sessions.course_id AND
+Registers.launch_date = Sessions.launch_date AND
+Registers.cust_id = target_cid
+ORDER BY Sessions.s_date, Sessions.start_time;
+
+END;
+$$ LANGUAGE plpgsql;
 
 /** 19: Customer request to change registed course session to another session
+NEGATIVE:
+[?] Customer does not exist
+[?] Session does not exist
+[?] Customer previously not registered to course with another session
+POSITIVE:
+[?] Get all active registration and sorted in order
 **/
--- CREATE OR REPLACE PROCEDURE update_course_session(
---     cid INTEGER,
---     offering_id INTEGER,
---     new_sid INTEGER
--- )
+CREATE OR REPLACE PROCEDURE update_course_session(
+    target_cid INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
+    new_sid INTEGER
+) AS $$
+DECLARE
+target_session_start_date DATE;
+BEGIN
+
+-- VALIDATION
+-- Customer registered to some session previously
+IF (NOT EXISTS 
+    (SELECT 1 from Registers WHERE 
+        Registers.cust_id = target_cid AND
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id)) THEN
+            RAISE EXCEPTION 'Customer % previously has not registered for a session under course offering %, with launch date: '
+                , new_sid, target_course_id, target_offering_launch_date;
+END IF;
+
+-- Target session exists
+IF (NOT EXISTS 
+    (SELECT 1 from Sessions WHERE 
+        Sessions.sid = new_sid AND 
+        Sessions.launch_date = target_offering_launch_date AND
+        Sessions.course_id = target_course_id)) THEN
+            RAISE EXCEPTION 'Target session % does not exist for course offering %, with launch date: '
+                , new_sid, target_course_id, target_offering_launch_date;
+END IF;
+
+SELECT Sessions.s_date into target_session_start_date
+from Sessions
+where Sessions.sid = new_sid AND 
+    Sessions.launch_date = target_offering_launch_date AND
+    Sessions.course_id = target_course_id;
+
+-- Target session should not have started
+IF (target_session_start_date < CURRENT_DATE) THEN
+    RAISE EXCEPTION 'Target session %, is in the past', new_sid;
+END IF;
+
+-- Target session has spare seats to be done as a trigger
+
+UPDATE Registers
+SET sid = new_sid,
+registration_date = CURRENT_DATE
+WHERE Registers.launch_date = target_offering_launch_date AND
+Registers.course_id = target_course_id AND
+Registers.cust_id = target_cid;
+
+END;
+$$ LANGUAGE plpgsql;
 -- -- check new session_id exists
--- -- check cid currently registered in offering_id
+-- -- check cid currently registered in
 -- -- update Registers table sid to new 
 
--- -- 20
--- -- if request is valid: process the request with necessary update
--- CREATE OR REPLACE PROCEDURE cancel_registration(
---     cid INTEGER，
---     offering_id INTEGER
--- )
+/** 20: cancel / refund registration
+NEGATIVE:
+[?] Customer does not exist
+[?] Customer has not registered for target offering
+POSITIVE:
+[?] Refund credit card payment
+[?] Refund redemption 
+**/
+-- if request is valid: process the request with necessary update
+CREATE OR REPLACE PROCEDURE cancel_registration(
+    target_cid INTEGER，
+    target_course_id INTEGER,
+    target_offering_launch_date DATE
+) AS $$
+DECLARE
+target_sid INTEGER;
+target_session_s_date DATE;
+target_course_fees NUMERIC
+is_redemption_payment BOOLEAN DEFAULT FALSE;
+BEGIN
+
+SELECT fees INTO target_course_fees
+FROM Offerings
+WHERE Offerings.course_id = _ AND Offerings.launch_Date = target_offering_launch_date;
+
+-- VALIDATION
+-- Check cid is indeed registered
+IF (NOT EXISTS (
+    SELECT 1 
+    FROM Registers
+    WHERE 
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id AND
+        Registers.cust_id = target_cid;
+)) THEN
+    RAISE EXCEPTION 'Customer %, is not registered for course: %, with launch date: ', target_cid, target_course_id, target_offering_launch_date;
+END IF;
+
+SELECT Registers.sid, Registers.s_date INTO target_sid, target_session_s_date
+FROM Registers
+    WHERE 
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id AND
+        Registers.cust_id = target_cid;
+
+
+-- check if is redeem or credit card
+IF (EXISTS (
+    SELECT 1 
+    FROM Redeems
+    WHERE 
+        Redeems.launch_date = target_offering_launch_date AND
+        Redeems.course_id = target_course_id AND
+        Redeems.cust_id = target_cid
+        Redeems.sid = target_sid;
+)) THEN
+    is_redemption_payment := TRUE;
+END IF;
+
+-- check current date is 7 days before registered session
+IF ((CURRENT_DATE - target_session_s_date) < 7) THEN
+    INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id)
+    VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id);
+ELSE
+-- process actual refund
+    IF (is_redemption_payment) THEN
+        UPDATE Buys
+        SET num_remaining_redemptions = num_remaining_redemptions + 1
+        WHERE 
+            Buys.cust_id = target_cid AND 
+            Buys.package_id = target_package_id AND 
+            Buys.buy_date = target_package_buy_date;
+
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, package_credit)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 1);
+    ELSE
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, refund_amt)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 0.9 * target_course_fees);
+    END IF;
+END IF;
+
+-- remove from registers table
+DELETE FROM Registers 
+WHERE 
+    Registers.launch_date = target_offering_launch_date AND
+    Registers.course_id = target_course_id AND
+    Registers.cust_id = target_cid;
+    Registers.sid = target_sid;
+
+END;
+$$ LANGUAGE plpgsql;
 -- -- check mapping exists
--- -- remove all registers rows with cid = cid & offering_id = offering_id
+-- -- remove all registers rows with cid = cid 
 -- -- soft delete?
 
 /** 21: Change instructor for a course session
@@ -453,22 +945,18 @@ POSITIVE:
 [G] Standard insertion
 **/
 CREATE OR REPLACE PROCEDURE update_instructor (
-    target_offering_id INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
     target_sid INTEGER,
     new_iid INTEGER -- Conducts
 ) AS $$
 DECLARE
-target_course_id INTEGER;
 session_start_date DATE;
 BEGIN
 
-SELECT course_id INTO target_course_id
-FROM Offerings
-WHERE Offerings.offering_id = target_offering_id;
-
 SELECT s_date INTO session_start_date
 FROM Sessions
-WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id;
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
 
 IF (session_start_date < CURRENT_DATE) THEN 
 RAISE EXCEPTION 'Course session has started';
@@ -476,7 +964,7 @@ END IF;
 
 UPDATE Conducts
 SET iid = new_iid
-WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid;
+WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND Conducts.launch_date = target_offering_launch_date;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -491,24 +979,19 @@ POSITIVE:
 [?] Standard update - TBC with freddy trigger which sets to old rid
 **/
 CREATE OR REPLACE PROCEDURE update_room (
-    target_offering_id INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
     target_sid INTEGER,
     new_rid INTEGER
 ) AS $$
 DECLARE
-target_course_id INTEGER;
 session_start_date DATE;
 BEGIN
-
--- get target_course_id 
-SELECT course_id INTO target_course_id
-FROM Offerings
-WHERE Offerings.offering_id = target_offering_id;
 
 -- get session_start_id
 SELECT s_date INTO session_start_date
 FROM Sessions
-WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id;
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
 
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
@@ -518,17 +1001,17 @@ END IF;
 -- actual update
 UPDATE Sessions
 SET rid = new_rid
-WHERE Sessions.course_id = target_course_id AND Sessions.sid = target_sid;
+WHERE Sessions.course_id = target_course_id AND Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date;
 
 UPDATE Conducts
 SET rid = new_rid
-WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid;
+WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND Conducts.launch_date = target_offering_launch_date;
 
 END;
 $$ LANGUAGE plpgsql;
 
 -- check number registration for session < seating capacity of new room
--- valid request: offering_id, sid, rid exists in Sessions
+-- valid request: , sid, rid exists in Sessions
 
 -- update Sessions table rid
 
@@ -543,25 +1026,19 @@ POSITIVE:
 [?] Only session of course_offering should cascade delete course_offering
 **/
 CREATE OR REPLACE PROCEDURE remove_session(
-    target_offering_id INTEGER,
+    target_course_id INTEGER,
+    target_offering_launch_date DATE,
     target_sid INTEGER
 ) AS $$
 DECLARE
-target_course_id INTEGER;
 session_start_date DATE;
 num_registered_to_session INTEGER;
-target_offering_launch_date DATE;
 BEGIN
-
--- get target_course_id
-SELECT course_id, launch_date INTO target_course_id, target_offering_launch_date
-FROM Offerings
-WHERE Offerings.offering_id = target_offering_id;
 
 -- get session_start_id
 SELECT s_date INTO session_start_date
 FROM Sessions
-WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id;
+WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
 
 -- VALIDATION
 -- check course session has not started
@@ -570,12 +1047,22 @@ RAISE EXCEPTION 'Course session has started';
 END IF;
 
 -- check nobody registered
-IF (EXISTS (SELECT 1 FROM Registers WHERE Registers.course_id = target_course_id AND Registers.sid = target_sid)) THEN 
+IF (EXISTS (
+    SELECT 1 FROM Registers 
+    WHERE 
+        Registers.course_id = target_course_id AND
+        Registers.sid = target_sid AND
+        Registers.launch_date = target_offering_launch_date
+    )) THEN 
 RAISE EXCEPTION 'There is at least one customer registered for session. Thus, removal of target session is invalid';
 END IF;
 
 -- check if session is only one for couse_offering
-IF ((SELECT count(*) FROM Sessions WHERE Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date) = 1) THEN 
+IF ((SELECT count(*) FROM Sessions 
+        WHERE 
+            Sessions.course_id = target_course_id AND
+            Sessions.launch_date = target_offering_launch_date) = 1
+    ) THEN 
 RAISE EXCEPTION 'Only session is course offering. Thus, removal of target session is invalid';
 END IF;
 
@@ -588,7 +1075,7 @@ WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND la
 
 END;
 $$ LANGUAGE plpgsql;
--- -- check request valid: sid, offering_id exists in Sessions / Conducts
+-- -- check request valid: sid,  exists in Sessions / Conducts
 -- -- check: if >=1 registration for session cannot remove!!
 -- -- allow seating capacity of course offering to
 -- -- fall below course offering target number of reigstrations
@@ -606,7 +1093,8 @@ POSITIVE:
 [G] Standard insertion
 **/ 
 CREATE OR REPLACE PROCEDURE add_session(
-    target_offering_id INTEGER,
+    offering_course_id INTEGER,
+    offering_launch_date DATE,
     new_sid INTEGER,
     s_date DATE,
     start_hour INTEGER,
@@ -617,22 +1105,19 @@ DECLARE
 offering_registration_deadline DATE;
 offering_start_date DATE;
 offering_end_date DATE;
-offering_course_id INTEGER;
-offering_launch_date DATE;
 course_area_name TEXT;
 offering_duration INTEGER;
 BEGIN
--- check offering_id exists
 
 -- check start_hour is valid number
 
 -- chekc No two sessions for the same course offering can be conducted on the same day and at the same time
 
 -- get registration deadline
-SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date, Offerings.course_id, Offerings.launch_date, Offerings.duration 
-INTO offering_registration_deadline, offering_start_date, offering_end_date, offering_course_id, offering_launch_date, offering_duration
+SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date, Offerings.duration 
+INTO offering_registration_deadline, offering_start_date, offering_end_date, offering_duration
 FROM Offerings
-where Offerings.offering_id = target_offering_id;
+where Offerings.launch_date = offering_launch_date AND Offerings.course_id = offering_course_id;
 
 SELECT Courses.area_name 
 INTO course_area_name
@@ -657,3 +1142,6 @@ $$ LANGUAGE plpgsql;
 -- check course_offering registration deadline has not passed
 -- check request is valid: rid exists, iid, exists, room available, iid available
 -- add into conducts table?
+
+
+

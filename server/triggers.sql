@@ -22,7 +22,13 @@ FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts();
 CREATE OR REPLACE FUNCTION before_insert_buys() RETURNS TRIGGER AS $$
 DECLARE
   num_remaining_redemptions INTEGER;
+  sale_start DATE;
+  sale_end DATE;
 BEGIN
+  SELECT sale_start_date, sale_end_date INTO sale_start, sale_end FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
+  IF (NEW.buy_date < sale_start OR NEW.buy_date > sale_end) THEN
+    RAISE EXCEPTION 'Unable to purchase course package. % buy date not within % and %', NEW.buy_date, sale_start_date, sale_end_date;
+  END IF;
   SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
   RETURN NEW;
@@ -56,6 +62,7 @@ DECLARE
   latest_start_date DATE;
   s_capacity INTEGER;
   old_capacity INTEGER;
+  num_hours INTEGER;
 BEGIN
   SELECT start_date, end_Date INTO earliest_start_date, latest_start_date FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
   IF (NEW.s_date < earliest_start_date OR earliest_start_date IS NULL) THEN
@@ -67,6 +74,8 @@ BEGIN
   SELECT seating_capacity INTO s_capacity FROM Rooms WHERE NEW.rid = Rooms.rid;
   SELECT seating_capacity INTO old_capacity FROM Offerings WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
   UPDATE Offerings SET seating_capacity = s_capacity + old_capacity WHERE Offerings.course_id = NEW.course_id AND Offerings.launch_date = NEW.launch_date;
+  SELECT duration INTO num_hours FROM Courses WHERE Courses.course_id = NEW.course_id;
+  NEW.end_time := NEW.start_time + num_hours; 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -75,13 +84,16 @@ CREATE TRIGGER before_insert_session
 BEFORE INSERT ON Sessions
 FOR EACH ROW EXECUTE FUNCTION before_insert_session();
 
--- CREATE OR REPLACE FUNCTION before_update_conducts() RETURNS TRIGGER AS $$
--- DECLARE
+CREATE OR REPLACE FUNCTION after_insert_redeems() RETURNS TRIGGER AS $$
+DECLARE
+  current_remaining INTEGER;
+BEGIN
+  SELECT num_remaining_redemptions INTO current_remaining FROM Buys WHERE Buys.buy_date = NEW.buy_date AND Buys.cust_id = NEW.cust_id AND Buys.package_id = NEW.package_id;
+  UPDATE Buys SET num_remaining_redemptions = current_remaining - 1 WHERE Buys.buy_date = NEW.buy_date AND Buys.cust_id = NEW.cust_id AND Buys.package_id = NEW.package_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- BEGIN
--- END;
--- $$ LANGUAGE plpgsql;
-
--- CREATE TRIGGER before_update_conducts
--- BEFORE UPDATE ON Conducts
--- FOR EACH ROW EXECUTE FUNCTION before_update_conducts();
+CREATE TRIGGER after_insert_redeems 
+AFTER INSERT ON Redeems
+FOR EACH ROW EXECUTE FUNCTION after_insert_redeems();
