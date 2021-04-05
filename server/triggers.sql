@@ -207,3 +207,39 @@ CREATE TRIGGER after_insert_registers_trigger
 AFTER INSERT ON Registers
 FOR EACH ROW EXECUTE FUNCTION after_insert_registers();
 ---------------------------------------------------------------------------------
+
+
+-- 4) For each course offered by the company, a customer can register 
+-- for at most one of its sessions before its registration deadline (Dian Hao)
+-- 6) Each instructor can teach at most one course session at any hour (Dian Hao)
+
+---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION one_session_at_all_time_per_room() RETURNS TRIGGER AS $$
+DECLARE
+    session_date DATE;
+    session_start_time INTEGER;
+    session_end_time INTEGER;
+BEGIN
+    -- get the start time and end time. room id access from NEW.rid
+    SELECT s_date, start_time, end_time INTO session_date, session_start_time, session_end_time 
+    FROM (
+        SELECT s_date, start_time, end_time
+        FROM Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id
+        WHERE S.sid = NEW.sid AND S.course_id = NEW.course_id
+    ) AS CS;
+    IF EXISTS(
+        SELECT 1 
+        FROM (Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id) AS X
+        WHERE X.rid = NEW.rid AND X.s_date = session_date AND (session_end_time <= X.start_time OR X.end_time <= session_start_time)
+    ) THEN RETURN NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER one_session_at_all_time_per_room_trigger
+BEFORE INSERT OR UPDATE ON Conducts
+FOR EACH ROW EXECUTE FUNCTION one_session_at_all_time_per_room();
+---------------------------------------------------------------------------------
+
+
