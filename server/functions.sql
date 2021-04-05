@@ -234,7 +234,7 @@ CREATE OR REPLACE FUNCTION find_rooms (
 ) RETURNS TABLE(room_id INTEGER) AS $$
     WITH NotAvailableRooms AS (
         SELECT rid
-        FROM Sessions
+        FROM Sessions NATURAL JOIN Conducts 
         WHERE s_date = session_date AND 
               ((start_time < session_start_hour AND  session_start_hour < end_time)
               OR 
@@ -272,13 +272,13 @@ BEGIN
         hours INT[]
     );
 LOOP
-    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
+    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - X.num_registrations - X.num_redeems, Rooms.seating_capacity - X.num_registrations, Rooms.seating_capacity - X.num_redeems, Rooms.seating_capacity) as r_capacity, X.sid, X.course_id, X.launch_date
     FROM Rooms 
     LEFT JOIN (
-        SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.sid, Sessions.course_id, Sessions.launch_date, Sessions.rid
-        FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
+        SELECT COUNT(Registers.cust_id) as num_registrations, COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
+        FROM Conducts NATURAL JOIN Sessions LEFT JOIN Registers ON Conducts.sid = Registers.sid AND Conducts.launch_date = Registers.launch_date AND Conducts.course_id = Registers.course_id LEFT JOIN Redeems ON Conducts.sid = Redeems.sid AND Conducts.launch_date = Redeems.launch_date AND Conducts.course_id = Redeems.course_id
         WHERE Sessions.s_date = curr_date
-        GROUP BY Sessions.course_id, Sessions.launch_date, Sessions.sid) AS X 
+        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid) AS X 
         ON Rooms.rid = X.rid;
     LOOP
         FETCH curs INTO r;
@@ -426,9 +426,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION get_my_course_package(
     c_id INTEGER
 ) RETURNS TABLE (
-    j JSON --package name, purchase date, price of package, number of free sessions included in the package, 
-    -- number of sessions that have not been redeemed, 
-    -- and information for each redeemed session (course name, session date, session start hour)
+    j JSON 
 ) AS $$
 DECLARE
     arr redeemed_session[];
@@ -615,17 +613,9 @@ end_date DATE,
 registration_deadline DATE,
 course_fees NUMERIC,
 number_of_remaining_seats INTEGER) AS $$
-with num_registrations_for_each_session as (
-SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.launch_date
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
-GROUP BY Sessions.course_id, Sessions.launch_date),
-offerings_join_courses as (
-SELECT Offerings.course_id, Offerings.launch_date, Courses.title as course_title, Courses.area_name as course_area, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees as course_fees, Offerings.seating_capacity
-FROM Offerings INNER JOIN Courses ON Offerings.course_id = Courses.course_id)
-SELECT course_title, course_area, start_date, end_date, registration_deadline, course_fees, (seating_capacity - num_registrations)::int as number_of_remaining_seats
-FROM offerings_join_courses LEFT JOIN num_registrations_for_each_session
-ON offerings_join_courses.course_id = num_registrations_for_each_session.course_id AND offerings_join_courses.launch_date = num_registrations_for_each_session.launch_date
-WHERE registration_deadline >= CURRENT_DATE;
+SELECT Courses.title, Courses.area_name, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees, Offerings.seating_capacity
+FROM Offerings LEFT JOIN Courses ON Offerings.course_id = Courses.course_id
+WHERE Offerings.registration_deadline >= CURRENT_DATE AND Offerings.seating_capacity > 0;
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION get_available_course_sessions(_course_id INTEGER, _launch_date DATE)
@@ -634,32 +624,34 @@ session_date DATE,
 start_hour INTEGER,
 instructor_name TEXT,
 remaining_seats INTEGER) AS $$
-DECLARE
-c_id INTEGER;
-l_date DATE;
 BEGIN
-SELECT course_id, launch_date INTO c_id, l_date
-FROM Offerings
-WHERE Offerings.course_id = _course_id AND Offerings.launch_date = _launch_date;
 RETURN QUERY
 with instructor_name_mapping AS (
 SELECT DISTINCT Instructors.iid, Employees.name
 FROM Instructors LEFT JOIN Employees ON Instructors.iid = Employees.eid
 ),
 offering_sessions_table AS (
-    SELECT Sessions.course_id, Sessions.sid, Sessions.start_time, Sessions.s_date FROM Sessions WHERE Sessions.launch_date = l_date AND Sessions.course_id = c_id
+    SELECT Sessions.sid, Sessions.start_time, Sessions.s_date FROM Sessions WHERE Sessions.launch_date = _launch_date AND Sessions.course_id = _course_id
 ),
 sessions_instructors_table AS (
-SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, offering_sessions_table.start_time, offering_sessions_table.s_date
-FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid INNER JOIN offering_sessions_table ON Conducts.sid = offering_sessions_table.sid AND Conducts.course_id = offering_sessions_table.course_id 
+    SELECT instructor_name_mapping.name, Conducts.sid, Conducts.course_id, Rooms.seating_capacity, offering_sessions_table.start_time, offering_sessions_table.s_date
+    FROM Conducts LEFT JOIN instructor_name_mapping ON Conducts.iid = instructor_name_mapping.iid LEFT JOIN Rooms ON Conducts.rid = Rooms.rid INNER JOIN offering_sessions_table ON Conducts.sid = offering_sessions_table.sid AND Conducts.course_id = offering_sessions_table.course_id 
 ),
-num_registrations_for_each_session as (
-SELECT COUNT(Registers.cust_id) as num_registrations, Sessions.course_id, Sessions.sid
-FROM Sessions LEFT JOIN Registers ON Sessions.sid = Registers.sid AND Sessions.launch_date = Registers.launch_date AND Sessions.course_id = Registers.course_id
-GROUP BY Sessions.course_id, Sessions.sid
+num_registrations_for_each_session AS (
+    SELECT COUNT(Registers.cust_id) AS num_reg, offering_sessions_table.sid
+    FROM offering_sessions_table LEFT JOIN Registers ON offering_sessions_table.sid = Registers.sid
+    WHERE Registers.course_id = _course_id AND Registers.launch_date = _launch_date 
+    GROUP BY offering_sessions_table.sid
+),
+num_redemptions_for_each_session AS (
+    SELECT COUNT(Redeems.cust_id) AS num_red, offering_sessions_table.sid
+    FROM offering_sessions_table LEFT JOIN Redeems ON offering_sessions_table.sid = Redeems.sid
+    WHERE Redeems.course_id = _course_id AND Redeems.launch_date = _launch_date 
+    GROUP BY offering_sessions_table.sid
 )
-SELECT sessions_instructors_table.s_date as session_date, sessions_instructors_table.start_time as start_hour, sessions_instructors_table.name as instructor_name, (sessions_instructors_table.seating_capacity - num_registrations)::int as remaining_seats
-FROM sessions_instructors_table LEFT JOIN num_registrations_for_each_session ON sessions_instructors_table.course_id = num_registrations_for_each_session.course_id AND sessions_instructors_table.sid = num_registrations_for_each_session.sid
+SELECT sessions_instructors_table.s_date, sessions_instructors_table.start_time, sessions_instructors_table.name, COALESCE(sessions_instructors_table.seating_capacity - num_reg - num_red, sessions_instructors_table.seating_capacity - num_reg, sessions_instructors_table.seating_capacity - num_red, sessions_instructors_table.seating_capacity)
+FROM sessions_instructors_table LEFT JOIN num_registrations_for_each_session ON sessions_instructors_table.sid = num_registrations_for_each_session.sid LEFT JOIN num_redemptions_for_each_session ON sessions_instructors_table.sid = num_redemptions_for_each_session.sid
+WHERE COALESCE(sessions_instructors_table.seating_capacity - num_reg - num_red, sessions_instructors_table.seating_capacity - num_reg, sessions_instructors_table.seating_capacity - num_red, sessions_instructors_table.seating_capacity) > 0
 ORDER BY sessions_instructors_table.s_date, sessions_instructors_table.start_time;
 END;
 $$ LANGUAGE plpgsql;
