@@ -144,7 +144,7 @@ CREATE TABLE Offerings (
   start_date DATE,
   end_date DATE,
   target_number_registrations integer DEFAULT 0,
-  seating_capacity integer DEFAULT 0,
+  seating_capacity integer,
   registration_deadline DATE,
   fees NUMERIC,
   aid integer NOT NULL REFERENCES Administrators,
@@ -164,7 +164,6 @@ CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   end_time integer,
   course_id integer,
   launch_date DATE,
-  rid integer NOT NULL REFERENCES Rooms,
   PRIMARY KEY(sid, course_id, launch_date),
   FOREIGN KEY (course_id, launch_date) REFERENCES Offerings(course_id, launch_date)
     ON DELETE CASCADE,
@@ -184,7 +183,8 @@ CREATE TABLE Conducts (
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
   FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   PRIMARY KEY (iid, area_name, rid, sid, course_id)
 );
 
