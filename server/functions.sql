@@ -29,6 +29,16 @@ BEGIN
         RAISE EXCEPTION 'employee category must be one of administrator, manager or instructor';
     END IF;
 
+    FOREACH emp_course_area IN ARRAY emp_course_areas
+    LOOP 
+        IF emp_category = 'manager' AND EXISTS(
+                SELECT 1 FROM Course_areas 
+                WHERE area_name = emp_course_area
+        ) THEN 
+            RAISE EXCEPTION 'course area already managed by someone';
+        END IF;
+    END LOOP;
+
     -- full time emp
     IF (emp_monthly_salary IS NOT NULL) THEN 
         IF (emp_category = 'manager') THEN
@@ -39,6 +49,7 @@ BEGIN
             FOREACH emp_course_area IN ARRAY emp_course_areas 
             LOOP
                 INSERT INTO Course_areas(area_name, mid) VALUES(emp_course_area, emp_id);
+                
             END LOOP;
         ELSIF (emp_category = 'administrator') THEN
             INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
@@ -51,6 +62,7 @@ BEGIN
             INSERT INTO Full_Time_Emp(eid, monthly_salary) VALUES(emp_id, emp_monthly_salary);
             FOREACH emp_course_area in ARRAY emp_course_areas
             LOOP
+                INSERT INTO Instructors(Iid, area_name) VALUES(emp_id, emp_course_area);
                 INSERT INTO Full_Time_Instructor(ftid, area_name) VALUES(emp_id, emp_course_area);
             END LOOP;
         END IF;
@@ -60,13 +72,14 @@ BEGIN
             RAISE EXCEPTION 'a manager is not a part time employee';
         ELSIF (emp_category = 'administrator') THEN
             RAISE EXCEPTION 'an administrator is not a part time employee';
-        ELSE 
+        ELSIF (emp_category = 'instructor') THEN
             INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
             emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
             INSERT INTO Part_Time_Emp(eid, hourly_rate) VALUES(emp_id, emp_hourly_rate);
             FOREACH emp_course_area in ARRAY emp_course_areas
             LOOP
-                INSERT INTO Part_Time_Instructor(ftid, area_name) VALUES(emp_id, emp_course_area);
+                INSERT INTO Instructors(iid, course_area) VALUES(emp_id, emp_course_area);
+                INSERT INTO Part_Time_Instructor(ptid, course_area) VALUES(emp_id, emp_course_area);
             END LOOP;
         END IF;
     END IF;
