@@ -70,14 +70,16 @@ CREATE TABLE Employees (
 
 -- checked
 CREATE TABLE Part_Time_Emp (
-  eid integer PRIMARY KEY REFERENCES Employees,
+  eid integer PRIMARY KEY REFERENCES Employees
+    ON DELETE CASCADE,
   hourly_rate NUMERIC
     constraint positive_hourly_rate check (hourly_rate >= 0)
 );
 
 -- checked
 CREATE TABLE Full_Time_Emp (
-  eid integer PRIMARY KEY REFERENCES Employees,
+  eid integer PRIMARY KEY REFERENCES Employees
+    ON DELETE CASCADE,
   monthly_salary NUMERIC
     constraint positive_monthly_salary check (monthly_salary >= 0)
   -- SET TRIGGER: Every Full_Time_Emp is either a Full_Time_Instructor or Managers or Administrators but not all
@@ -86,11 +88,13 @@ CREATE TABLE Full_Time_Emp (
 -- checked
 CREATE TABLE Managers (
   mid integer PRIMARY KEY REFERENCES Full_Time_Emp
+  ON DELETE CASCADE
 );
 
 -- checked
 CREATE TABLE Administrators(
   aid integer PRIMARY KEY REFERENCES Full_Time_Emp
+  ON DELETE CASCADE
 );
 
 -- checked
@@ -103,14 +107,16 @@ CREATE TABLE Course_areas (
 -- checked
 -- consider how diff part-time & full-time for add_employee function
 CREATE TABLE Instructors (
-  iid integer REFERENCES Employees,
+  iid integer REFERENCES Employees
+    ON DELETE CASCADE,
   area_name text REFERENCES Course_areas,
   PRIMARY KEY(iid, area_name)
 );
 
 -- checked
 CREATE TABLE Part_Time_Instructor (
-  ptid integer REFERENCES Part_Time_Emp,
+  ptid integer REFERENCES Part_Time_Emp
+    ON DELETE CASCADE,
   area_name TEXT,
   FOREIGN KEY (ptid, area_name) 
     REFERENCES Instructors
@@ -120,7 +126,8 @@ CREATE TABLE Part_Time_Instructor (
 
 -- checked
 CREATE TABLE Full_Time_Instructor (
-  ftid integer REFERENCES Full_Time_Emp,
+  ftid integer REFERENCES Full_Time_Emp
+    ON DELETE CASCADE,
   area_name TEXT, 
   FOREIGN KEY (ftid, area_name) 
     REFERENCES Instructors
@@ -161,7 +168,7 @@ CREATE TABLE Offerings (
 CREATE TABLE Sessions (/*WEAK ENTITIY OF OFFERING*/
   sid INTEGER,
   s_date DATE,
-  start_time integer,
+  start_time integer, 
   end_time integer,
   course_id integer,
   launch_date DATE,
