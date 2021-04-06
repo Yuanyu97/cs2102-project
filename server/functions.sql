@@ -256,6 +256,10 @@ BEGIN
         SELECT DISTINCT iid
         FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
         WHERE session_start_date = s_date AND NOT (session_start_hour > end_time OR session_end_hour < start_time)
+        EXCEPT 
+        SELECT DISTINCT eid
+        FROM Employees
+        WHERE depart_date < session_start_date
     ),
     AvailableInstructors AS (
         SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM MaxHoursQuotaReachedInstructors EXCEPT 
@@ -451,6 +455,7 @@ BEGIN
     LOOP
         FOR counter_date IN 0..date_diff
         LOOP
+            CONTINUE WHEN course_start_date + counter_date > (SELECT depart_date FROM Employees WHERE eid = r.iid);
             avail_hours := ARRAY[]::INTEGER[];
             FOR counter_hours in 9..17
             LOOP
@@ -461,7 +466,7 @@ BEGIN
                                 SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
                                 FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
                                 ORDER BY iid, s_date) as Y
-                        WHERE r.iid = Y.iid AND Y.s_date = current_date AND Y.start_time <= counter_hours AND counter_hours <= Y.end_time
+                        WHERE r.iid = Y.iid AND Y.s_date = course_start_date + counter_date AND Y.start_time <= counter_hours AND counter_hours <= Y.end_time
                     );
                 avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
             END LOOP;
