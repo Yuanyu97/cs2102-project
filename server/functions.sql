@@ -3,10 +3,10 @@ CREATE OR REPLACE PROCEDURE add_employee (
     emp_home_address TEXT,
     emp_contact_number TEXT,
     emp_email_address TEXT,
-    emp_join_date DATE,
     emp_category TEXT,
     emp_monthly_salary NUMERIC DEFAULT NULL,
     emp_hourly_rate NUMERIC DEFAULT NULL,
+    emp_join_date DATE DEFAULT CURRENT_DATE,
     emp_course_areas TEXT[] DEFAULT '{}'
 ) AS $$
 DECLARE
@@ -23,6 +23,10 @@ BEGIN
 
     IF (emp_monthly_salary IS NOT NULL AND emp_hourly_rate IS NOT NULL) THEN
         RAISE EXCEPTION 'hourly rate and monthly salary cannot be both NOT NULL';
+    END IF;
+
+    IF (emp_category NOT IN ('administrator', 'manager', 'instructor')) THEN
+        RAISE EXCEPTION 'employee category must be one of administrator, manager or instructor';
     END IF;
 
     -- full time emp

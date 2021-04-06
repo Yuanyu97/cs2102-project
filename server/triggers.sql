@@ -207,12 +207,55 @@ CREATE TRIGGER after_insert_registers_trigger
 AFTER INSERT ON Registers
 FOR EACH ROW EXECUTE FUNCTION after_insert_registers();
 ---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION register_at_most_one_session_before_deadline() RETURNS TRIGGER AS $$
+DECLARE
+    session_registration_deadline DATE;
+BEGIN
+    SELECT registration_deadline INTO session_registration_deadline 
+    FROM (
+        SELECT registration_deadline
+        FROM Registers R INNER JOIN Offerings O ON R.launch_date = O.launch_date AND R.course_id = O.course_id
+        WHERE R.course_id = NEW.course_id AND R.sid = NEW.sid AND R.launch_date = NEW.launch_date
+    ) AS X;
+    IF (NEW.registration_date > session_registration_deadline) OR EXISTS(
+        SELECT 1
+        FROM Registers 
+        WHERE cust_id = NEW.cust_id
+    ) THEN RETURN NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
+CREATE TRIGGER register_at_most_one_session_before_deadline_trigger
+BEFORE INSERT ON Registers
+FOR EACH ROW EXECUTE FUNCTION register_at_most_one_session_before_deadline();
+---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION instructor_teach_one_course_session_at_any_hour() RETURNS TRIGGER AS $$
+DECLARE
+    session_date DATE;
+    session_start_time INTEGER;
+    session_end_time INTEGER;
+BEGIN
+    SELECT s_date, start_time, end_time INTO session_date, session_start_time, session_end_time
+    FROM (
+        SELECT s_date, start_time, end_time
+        FROM Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id
+        WHERE S.sid = NEW.sid AND S.course_id = NEW.course_id
+    ) AS CS;
+    IF EXISTS (
+        SELECT 1 
+        FROM (Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id) AS X
+        where X.s_date = session_date AND X.iid = NEW.iid AND (session_end_time <= X.start_time OR X.end_time <= session_start_time)
+    ) THEN RETURN NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- 4) For each course offered by the company, a customer can register 
--- for at most one of its sessions before its registration deadline (Dian Hao)
--- 6) Each instructor can teach at most one course session at any hour (Dian Hao)
-
+CREATE TRIGGER instructor_teach_one_course_session_at_any_hour_trigger
+BEFORE INSERT OR UPDATE ON Conducts
+FOR EACH ROW EXECUTE FUNCTION instructor_teach_one_course_session_at_any_hour();
 ---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION one_session_at_all_time_per_room() RETURNS TRIGGER AS $$
 DECLARE
