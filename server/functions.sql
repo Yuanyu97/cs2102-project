@@ -166,7 +166,7 @@ BEGIN
     SELECT COUNT(*) INTO num_sessions_offered FROM Sessions
     WHERE course_id = cid AND launch_date = offering_launch_date;
 
-    session_duration := course_duration / num_sessions_offered;
+    session_duration := course_duration;
 
     session_end_hour := session_start_hour + session_duration;
 
