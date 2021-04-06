@@ -90,24 +90,52 @@ CREATE OR REPLACE PROCEDURE remove_employee (
     emp_id INTEGER,
     emp_depart_date DATE
 ) AS $$
-    WITH SessionsAndInstructors AS (
+DECLARE 
+    check_null_depart_date DATE;
+BEGIN
+    SELECT depart_date INTO check_null_depart_date
+    FROM Employees
+    WHERE eid = emp_id;
+    IF check_null_depart_date IS NULL THEN
+        WITH SessionsAndInstructors AS (
         SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
-    )
-    UPDATE Employees 
-    SET depart_date = emp_depart_date
-    WHERE eid = emp_id AND emp_id NOT IN (
-        SELECT DISTINCT mid FROM Course_areas
-        WHERE mid = emp_id
-        UNION
-        SELECT DISTINCT iid FROM SessionsAndInstructors
-        WHERE s_date > emp_depart_date
-        AND iid = emp_id
-        UNION 
-        SELECT DISTINCT aid FROM Offerings
-        WHERE registration_deadline > emp_depart_date
-        AND aid = emp_id
-    );
-$$ LANGUAGE SQL;
+        )
+        UPDATE Employees 
+        SET depart_date = emp_depart_date
+        WHERE eid = emp_id AND emp_id NOT IN (
+            SELECT DISTINCT mid FROM Course_areas
+            WHERE mid = emp_id
+            UNION
+            SELECT DISTINCT iid FROM SessionsAndInstructors
+            WHERE s_date > emp_depart_date
+            AND iid = emp_id
+            UNION 
+            SELECT DISTINCT aid FROM Offerings
+            WHERE registration_deadline > emp_depart_date
+            AND aid = emp_id
+        );
+    ELSE
+        RAISE EXCEPTION 'cannot fire an employee who is leaving soon';
+    END IF;
+    -- WITH SessionsAndInstructors AS (
+    --     SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
+    -- )
+    -- UPDATE Employees 
+    -- SET depart_date = emp_depart_date
+    -- WHERE eid = emp_id AND emp_id NOT IN (
+    --     SELECT DISTINCT mid FROM Course_areas
+    --     WHERE mid = emp_id
+    --     UNION
+    --     SELECT DISTINCT iid FROM SessionsAndInstructors
+    --     WHERE s_date > emp_depart_date
+    --     AND iid = emp_id
+    --     UNION 
+    --     SELECT DISTINCT aid FROM Offerings
+    --     WHERE registration_deadline > emp_depart_date
+    --     AND aid = emp_id
+    -- );
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE PROCEDURE add_customer (
     cname TEXT,
