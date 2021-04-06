@@ -18,15 +18,15 @@ BEGIN
     END IF;
 
     IF (emp_monthly_salary IS NULL AND emp_hourly_rate IS NULL) THEN
-        RAISE EXCEPTION 'hourly rate and monthly salary cannot be both NULL';
+        RAISE EXCEPTION 'Hourly rate and monthly salary cannot be both NULL';
     END IF;
 
     IF (emp_monthly_salary IS NOT NULL AND emp_hourly_rate IS NOT NULL) THEN
-        RAISE EXCEPTION 'hourly rate and monthly salary cannot be both NOT NULL';
+        RAISE EXCEPTION 'Please provide only monthly salary OR hourly salary.';
     END IF;
 
     IF (emp_category NOT IN ('administrator', 'manager', 'instructor')) THEN
-        RAISE EXCEPTION 'employee category must be one of administrator, manager or instructor';
+        RAISE EXCEPTION 'Employee category must be one of administrator, manager or instructor';
     END IF;
 
     -- full time emp
@@ -57,9 +57,9 @@ BEGIN
     -- part time emp
     ELSE 
         IF (emp_category = 'manager') THEN
-            RAISE EXCEPTION 'a manager is not a part time employee';
+            RAISE EXCEPTION 'A manager is not a part time employee. Please provide monthly salary only.';
         ELSIF (emp_category = 'administrator') THEN
-            RAISE EXCEPTION 'an administrator is not a part time employee';
+            RAISE EXCEPTION 'An administrator is not a part time employee Please provide monthly salary only.';
         ELSE 
             INSERT INTO Employees(name, address, phone, email, join_date) VALUES (emp_name, emp_home_address,
             emp_contact_number, emp_email_address, emp_join_date) RETURNING eid into emp_id;
