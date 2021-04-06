@@ -134,7 +134,8 @@ CREATE TABLE Courses (
   title text NOT NULL,
   duration integer,
   description text,
-  area_name text NOT NULL REFERENCES Course_areas
+  area_name text NOT NULL REFERENCES Course_areas,
+  check (duration <= 4)
 );
 
 -- checked
@@ -180,6 +181,7 @@ CREATE TABLE Conducts (
   sid INTEGER,
   launch_date DATE,
   course_id INTEGER,
+  UNIQUE(sid, course_id, launch_date),
   FOREIGN KEY (iid, area_name) REFERENCES Instructors,
   FOREIGN KEY (rid) REFERENCES Rooms,
   FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions

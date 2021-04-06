@@ -225,6 +225,85 @@ CREATE TRIGGER after_insert_registers_trigger
 AFTER INSERT ON Registers
 FOR EACH ROW EXECUTE FUNCTION after_insert_registers();
 ---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION before_insert_update_conducts_instrcutor_consec() RETURNS TRIGGER AS $$
+DECLARE
+    target_conduct_date DATE;
+    target_start_time INTEGER;
+    target_end_time INTEGER;
+    no_conflicting_sessions INTEGER;
+BEGIN
+    SELECT Sessions.s_date, Sessions.start_time, Sessions.end_time INTO target_conduct_date, target_start_time, target_end_time
+    FROM Sessions
+    WHERE Sessions.course_id = NEW.course_id AND Sessions.launch_date = NEW.launch_date AND Sessions.sid = NEW.sid;
+
+    SELECT COUNT(*)::INTEGER INTO no_conflicting_sessions
+    FROM Conducts, Sessions
+    WHERE 
+        Conducts.iid = NEW.iid AND
+        Conducts.sid = Sessions.sid AND
+        Conducts.launch_date = Sessions.launch_date AND
+        Conducts.course_id = Sessions.course_id AND
+        Sessions.s_date = target_conduct_date AND
+        Sessions.end_time = target_start_time;
+
+    IF (no_conflicting_sessions > 0) THEN
+        RAISE EXCEPTION 'Cannot allow instructor to teach consecutive course sessions';
+    END IF;
+
+    return NEW;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_insert_update_conducts_instrcutor_consec_trigger 
+BEFORE INSERT OR UPDATE ON Conducts
+FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts_instrcutor_consec();
+---------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION before_insert_update_conducts_part_time_30_limit() RETURNS TRIGGER AS $$
+DECLARE
+is_part_time_instructor BOOLEAN DEFAULT FALSE;
+total_teaching_hours INTEGER;
+target_conduct_date DATE;
+target_start_time INTEGER;
+target_end_time INTEGER;
+BEGIN
+    IF (EXISTS (
+        SELECT 1 FROM Part_Time_Instructor WHERE ptid = NEW.iid
+    )) THEN 
+        is_part_time_instructor := TRUE;
+    END IF; 
+
+    IF (is_part_time_instructor) THEN
+        SELECT Sessions.s_date, Sessions.start_time, Sessions.end_time INTO target_conduct_date, target_start_time, target_end_time
+        FROM Sessions
+        WHERE Sessions.course_id = NEW.course_id AND Sessions.launch_date = NEW.launch_date AND Sessions.sid = NEW.sid;
+
+        SELECT SUM(end_time - start_time)::INTEGER INTO total_teaching_hours
+        FROM Conducts, Sessions
+        WHERE 
+            Conducts.iid = NEW.iid AND
+            Conducts.sid = Sessions.sid AND
+            Conducts.launch_date = Sessions.launch_date AND
+            Conducts.course_id = Sessions.course_id AND
+            extract (month FROM Sessions.s_date) = extract (month FROM target_conduct_date) AND
+            extract (year FROM Sessions.s_date) = extract (year FROM target_conduct_date); 
+
+        total_teaching_hours := total_teaching_hours + (target_end_time - target_start_time);
+
+        IF (total_teaching_hours > 30) THEN
+            RAISE EXCEPTION 'Cannot allow part time instructor to teach more than 30 hours in month';
+        END IF;
+    END IF;
+
+    return NEW;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_insert_update_conducts_part_time_30_limit_trigger 
+BEFORE INSERT OR UPDATE ON Conducts
+FOR EACH ROW EXECUTE FUNCTION before_insert_update_conducts_part_time_30_limit();
+---------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION register_at_most_one_session_before_deadline() RETURNS TRIGGER AS $$
 DECLARE
     session_registration_deadline DATE;

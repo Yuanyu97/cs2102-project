@@ -143,26 +143,55 @@ INSERT INTO Instructors VALUES(5, 'C++');
 INSERT INTO Instructors VALUES(3, 'R');
 INSERT INTO Instructors VALUES(6, 'Java');
 
+INSERT INTO Part_Time_Instructor VALUES(6, 'Java');
+
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 2, 'Java for beginners', 'Java');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Data Structures and Algorithms', 1, 'CS2040S', 'Java');
+INSERT INTO Courses(title, duration, description, area_name) VALUES('Parellel and Distributed Algorithms', 3, 'CS4231', 'Java');
 
 
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (1, '2021-04-11', 60, '2021-04-25', 99.99, 3);
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', 100, '2022-07-20', 59.99, 4);
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-11', 80, '2022-07-20', 89.99, 4);
+INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (4, '2021-03-15', 80, '2021-03-16', 69.99, 4);
 
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-05-05', 14, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2021-05-06', 10, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2022-08-05', 9, 2, '2022-07-10');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2022-08-05', 14, 2, '2022-07-10');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2022-08-08', 9, 2, '2022-07-11');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(3, '2022-08-08', 10, 2, '2022-07-10');
+
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-04-01', 9, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2021-04-01', 14, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(3, '2021-04-02', 9, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(4, '2021-04-02', 14, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(5, '2021-04-07', 9, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(6, '2021-04-07', 14, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(7, '2021-04-08', 14, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(8, '2021-04-05', 9, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(9, '2021-04-05', 14, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(10, '2021-04-06', 9, 4, '2021-03-15');
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(11, '2021-04-09', 14, 4, '2021-03-15');
+
 
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 1, '2021-04-11', 1, 1);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 2, '2021-04-11', 1, 3);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (3, 'Python', 1, '2022-07-10', 2, 4);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (3, 'Python', 2, '2022-07-10', 2, 5);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (3, 'Python', 1, '2022-07-11', 2, 6);
+
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 1, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 2, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 3, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 4, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 5, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 6, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 7, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 8, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 9, '2021-03-15', 4, 6);
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 10, '2021-03-15', 4, 6);
 
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 2);
