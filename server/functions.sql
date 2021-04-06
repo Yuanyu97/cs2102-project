@@ -404,9 +404,9 @@ BEGIN
         FROM 
             (SpecializingInstructors INNER JOIN Employees ON iid = eid) AS X
     LOOP
-        FOR counter_date IN 1..date_diff
+        FOR counter_date IN 0..date_diff
         LOOP
-            --avail_hours := "{}";
+            avail_hours := ARRAY[]::INTEGER[];
             FOR counter_hours in 9..17
             LOOP
                 CONTINUE WHEN counter_hours = 12 OR counter_hours = 13 OR 
