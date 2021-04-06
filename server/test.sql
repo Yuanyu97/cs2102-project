@@ -1,3 +1,11 @@
+/** 10: Add course offering
+-- NEGATIVE:
+-- [G] Target > seating capacity
+-- [?] Invalid administrator id
+-- POSITIVE:
+-- [?] 
+**/
+
 -- 17
 -- - credit_card registrations are not explicity recorded. 
 -- Testing done:

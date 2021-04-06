@@ -1169,8 +1169,17 @@ SELECT s_date INTO session_start_date
 FROM Sessions
 WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date;
 
+-- check new instructor has not been fired and
+IF (EXISTS (
+    SELECT 1 
+    FROM Employees
+    WHERE eid = iid AND depart_date IS NOT NULL 
+)) THEN
+    RAISE EXCEPTION 'Target instructor has departed';
+END IF;
+
 IF (session_start_date < CURRENT_DATE) THEN 
-RAISE EXCEPTION 'Course session has started';
+    RAISE EXCEPTION 'Course session has started';
 END IF;
 
 UPDATE Conducts
