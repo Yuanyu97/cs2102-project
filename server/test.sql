@@ -2,6 +2,64 @@
 -- NEGATIVE:
 -- [G] Target > seating capacity
 -- [?] Invalid administrator id
+-- [G] No instructor available
+-- POSITIVE:
+-- [?] 
+**/
+-- session
+-- add_course_offering(cid, course_fees, launch_date, reg_deadline, target, admin_id, session_array)
+CALL add_course_offering(1, 99, '2021-03-01', '2021-05-01', 100, 4, 
+array[
+    cast(row('2021-05-02', 10, 4) as session_array),
+    cast(row('2021-05-03', 14, 4) as session_array)
+]);
+-- will throw capacity 34 insufficient
+
+
+CALL add_course_offering(1, 99, '2021-03-01', '2021-05-01', 5, 4, 
+array[
+    cast(row('2021-05-12', 10, 4) as session_array),
+    cast(row('2021-05-13', 14, 4) as session_array)
+]);
+
+/** 11: Add course package
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [?] 
+**/
+
+/** 12: Get_available_course_package
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [?] 
+**/
+
+/** 13: Buy course package
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [?] 
+**/
+
+/** 14: get my course package
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [?] 
+**/
+
+/** 15: get available course offerings
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [?] 
+**/
+
+/** 16: get available course offerings
+-- NEGATIVE:
+-- [?] 
 -- POSITIVE:
 -- [?] 
 **/
