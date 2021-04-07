@@ -218,7 +218,7 @@ CREATE TABLE Registers (
   course_id integer,
   registration_date DATE,
   cust_id INTEGER,
-  PRIMARY KEY(registration_date, cust_id, sid, course_id),
+  PRIMARY KEY(registration_date, cust_id, sid, course_id, launch_date),
   FOREIGN KEY (cust_id) REFERENCES Customers,
   FOREIGN KEY (sid, course_id, launch_date) references Sessions
 );
