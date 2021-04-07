@@ -426,6 +426,14 @@ BEGIN
                 FROM Courses C
                 WHERE C.course_id = cid AND C.area_name = I.area_name
             )
+            EXCEPT 
+            SELECT DISTINCT iid 
+            FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
+            GROUP BY iid 
+            HAVING SUM(end_time - start_time) >= 30
+            EXCEPT
+            SELECT ftid
+            FROM Full_Time_Instructor
         ),
         ConductsAndSessions AS (
             SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
