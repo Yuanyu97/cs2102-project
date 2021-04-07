@@ -1434,3 +1434,101 @@ INSERT INTO Conducts(iid, area_name, sid, course_id, rid)
 
 END;
 $$ LANGUAGE plpgsql;
+
+create or replace function get_redeem_fees(in target_package_id integer, out redeem_fee numeric)
+returns numeric as $$
+
+declare
+
+begin
+ select price/num_free_registrations as redeem
+ from Course_packages
+ where Course_packages.package_id = target_package_id
+ into redeem_fee;
+
+end;
+$$ language plpgsql;
+
+create or replace function get_total_net_registration_fees(in target_launch_date date, target_course_id integer, out total numeric)
+returns numeric as $$
+
+declare
+registration_fee INTEGER;
+redeem_fee INTEGER;
+begin
+-- register fees:register join session join offering get fees 
+-- for each redeem fees: redeems join course_packages, get course_packages.price/course_packages.num_free_registrations
+SELECT sum(X.fees) FROM 
+ (select fees, course_id, launch_date
+ from (Sessions natural join Offerings) 
+ natural join Registers
+   where Course_id = target_course_id
+ and launch_date = target_launch_date) as x
+ group by Course_id, launch_date
+ into registration_fee;
+ 
+ select sum(redeem)
+from (select get_redeem_fees(package_id) as redeem, * 
+ from redeems
+ where course_id = target_course_id
+ and launch_date = target_launch_date) as Y
+ group by Course_id, launch_date
+ into redeem_fee;
+
+total := registration_fee + redeem_fee;
+
+end;
+$$ language plpgsql;
+
+create or replace function view_manager_report()
+returns table (
+manager_name text,
+-- output is sorted by manager_name asc
+num_course_areas bigint,
+-- from course_areas table, group by mid and count(*)
+num_course_offerings bigint,
+-- for each course_area (curs in course_areas table), group by course_area and date, 
+total_reg_fees numeric,
+
+top_offering_title text[]
+) as $$
+
+declare
+
+begin
+
+RETURN QUERY
+With table_one as (SELECT Table1.mid, Table1.name, Table1.num_course_areas, Table2.course_id, COALESCE(Table2.num_offerings, 0) as num_offerings, Table2.launch_date FROM
+(SELECT Managers.mid, Employees.name, COUNT(DISTINCT area_name) as num_course_areas
+ FROM Managers INNER JOIN employees on mid = eid
+ LEFT JOIN Course_areas ON Managers.mid = Course_areas.mid
+ GROUP BY Managers.mid, Employees.name) AS Table1
+ LEFT JOIN
+(SELECT Managers.mid, Courses.course_id, COUNT(Offerings.course_id) as num_offerings, Offerings.launch_date
+FROM Managers LEFT JOIN Course_areas ON Managers.mid = Course_areas.mid LEFT JOIN Courses ON Course_areas.area_name = Courses.area_name LEFT JOIN Offerings ON Courses.course_id = Offerings.course_id
+WHERE EXTRACT('year' FROM Offerings.end_date) = EXTRACT('year' FROM CURRENT_DATE)
+GROUP BY Managers.mid, Courses.course_id, Offerings.launch_date) AS Table2
+ON Table1.mid = Table2.mid),
+
+table_two as (select *, get_total_net_registration_fees(launch_date, course_id) as total_fees
+from table_one),
+
+table_three as (select mid as mid_max, max(total_fees) as fees_max
+from table_two
+group by mid),
+
+table_four as (select *
+from table_two cross join table_three
+where mid = mid_max
+and total_fees is not distinct from fees_max)
+
+select table_four.name, table_four.num_course_areas, table_four.num_offerings, table_four.total_fees, array_agg(C.title) as "title(s)"
+from table_four left outer join (select course_id, title from courses) as C
+on table_four.course_id = C.course_id
+group by table_four.name, table_four.num_course_areas, table_four.num_offerings, table_four.total_fees;
+
+end;
+$$ language plpgsql;
+
+
+
