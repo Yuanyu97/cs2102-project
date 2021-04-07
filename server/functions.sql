@@ -842,7 +842,8 @@ RETURNS TABLE (
 ) AS $$
 SELECT Courses.title, Courses.area_name, Offerings.start_date, Offerings.end_date, Offerings.registration_deadline, Offerings.fees, Offerings.seating_capacity
 FROM Offerings LEFT JOIN Courses ON Offerings.course_id = Courses.course_id
-WHERE Offerings.registration_deadline >= CURRENT_DATE AND Offerings.seating_capacity > 0;
+WHERE Offerings.registration_deadline >= CURRENT_DATE AND Offerings.seating_capacity > 0
+ORDER BY Offerings.registration_deadline, Courses.title;
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION get_available_course_sessions(_course_id INTEGER, _launch_date DATE)
@@ -914,11 +915,11 @@ CREATE OR REPLACE PROCEDURE register_session(
     payment_method TEXT
 ) AS $$
 DECLARE
-offering_registration_deadline DATE;
-offering_start_date DATE;
-offering_end_date DATE;
-target_package_id INTEGER;
-target_package_buy_date DATE;
+    offering_registration_deadline DATE;
+    offering_start_date DATE;
+    offering_end_date DATE;
+    target_package_id INTEGER;
+    target_package_buy_date DATE;
 BEGIN
 
 SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
@@ -946,12 +947,7 @@ IF (payment_method = 'redemption') THEN
     INSERT INTO Redeems (package_id, buy_date, sid, launch_date, course_id, redeem_date, cust_id) 
     VALUES(target_package_id, target_package_buy_date, target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
 
-    UPDATE Buys
-    SET num_remaining_redemptions = Buys.num_remaining_redemptions - 1
-    WHERE 
-        Buys.cust_id = target_cid AND 
-        Buys.package_id = target_package_id AND 
-        Buys.buy_date = target_package_buy_date;
+    -- reduction of num_remaining_buys is in trigger: after_insert_redeems
 ELSE
     -- insert into registration table
     INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) 
