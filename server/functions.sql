@@ -1278,7 +1278,6 @@ $$ LANGUAGE plpgsql;
 /** 22: change room for a course session
 TODO:
 - Check room capacity limitations [if relevant]
-
 Testing done:
 NEGATIVE:
 [?] 
@@ -1381,7 +1380,6 @@ $$ LANGUAGE plpgsql;
 /** 24: Add a new session to course offering
 Changes:
 - Change end date calculation to count from Courses.duration
-
 Testing done:
 NEGATIVE:
 [G] instructor specialisation mismatch with course area
@@ -1436,6 +1434,3 @@ INSERT INTO Conducts(iid, area_name, sid, course_id, rid)
 
 END;
 $$ LANGUAGE plpgsql;
-
-
-
