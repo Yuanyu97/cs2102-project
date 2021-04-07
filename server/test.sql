@@ -4,7 +4,7 @@
 -- [?] Invalid administrator id
 -- [G] No instructor available
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
 -- session
 -- add_course_offering(cid, course_fees, launch_date, reg_deadline, target, admin_id, session_array)
@@ -21,48 +21,57 @@ array[
     cast(row('2021-05-12', 10, 4) as session_array),
     cast(row('2021-05-13', 14, 4) as session_array)
 ]);
+-- will go through
 
 /** 11: Add course package
 -- NEGATIVE:
--- [?] 
+-- [?] sale_start_date before today
+-- [G] sale_start_date after sale_end_date
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
+-- add_course_package(package_name, num_free_registrations, sale_start_date, sale_end_date, price)
+call add_course_package('Intro to AI Course', 12, '2021-04-12', '2021-04-16', 3);
+-- 
 
 /** 12: Get_available_course_package
--- NEGATIVE:
--- [?] 
 -- POSITIVE:
 -- [?] 
 **/
+SELECT * FROM get_available_course_packages()
 
 /** 13: Buy course package
 -- NEGATIVE:
--- [?] 
+-- [?] package_id does not exist
+-- [?] customer_id does not exist
+-- [?] customer still has active package
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
+-- buy_course_package(cust_id, packaged_id)
+CALL buy_course_package(1, 1);
 
 /** 14: get my course package
 -- NEGATIVE:
 -- [?] 
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
+-- get_my_course_package(cid)
+select * from get_my_course_package(1);
 
 /** 15: get available course offerings
--- NEGATIVE:
--- [?] 
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
+select * from get_available_course_offerings();
 
-/** 16: get available course offerings
--- NEGATIVE:
--- [?] 
+/** 16: get available course offerings 
 -- POSITIVE:
--- [?] 
+-- [G] 
 **/
+-- get_available_course_sessions(course_id, launch_date );
+select * from get_available_course_sessions();
 
 -- 17
 -- - credit_card registrations are not explicity recorded. 
