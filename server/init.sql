@@ -237,7 +237,7 @@ CREATE TABLE Redeems (
   launch_date DATE,
   FOREIGN KEY (sid, course_id, launch_date)  REFERENCES Sessions,
   FOREIGN KEY (buy_date, cust_id, package_id) REFERENCES Buys,
-  PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id),
+  PRIMARY KEY (redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date),
   check (redeem_date >= buy_date)
 );
 
