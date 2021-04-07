@@ -996,7 +996,7 @@ IF (NOT EXISTS
         Registers.launch_date = target_offering_launch_date AND
         Registers.course_id = target_course_id)) THEN
             RAISE EXCEPTION 'Customer % previously has not registered for a session under course offering %, with launch date: %'
-                , new_sid, target_course_id, target_offering_launch_date;
+                , target_cid, target_course_id, target_offering_launch_date;
 END IF;
 
 -- Target session exists
@@ -1006,7 +1006,7 @@ IF (NOT EXISTS
         Sessions.launch_date = target_offering_launch_date AND
         Sessions.course_id = target_course_id)) THEN
             RAISE EXCEPTION 'Target session % does not exist for course offering %, with launch date: %'
-                , new_sid, target_course_id, target_offering_launch_date;
+                , target_cid, target_course_id, target_offering_launch_date;
 END IF;
 
 SELECT Sessions.s_date into target_session_start_date
