@@ -230,6 +230,5 @@ INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) V
 
 INSERT INTO Buys(buy_date, cust_id, package_id) VALUES (CURRENT_DATE, 3, 1);
 
-INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 1, '2021-04-11');
-INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 2, 1, '2021-04-11');
-INSERT INTO Redeems VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 2, '2022-07-10');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 1, '2021-04-11');
+-- INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 2, '2022-07-10');
