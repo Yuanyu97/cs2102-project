@@ -255,14 +255,14 @@ BEGIN
     TimeNotAvailableInstructors AS (
         SELECT DISTINCT iid
         FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
-        WHERE session_start_date = s_date AND NOT (session_start_hour > end_time OR session_end_hour < start_time)
-        EXCEPT 
+        WHERE session_start_date = s_date AND ((start_time - 1 <= session_start_hour AND  session_start_hour <= end_time) OR (start_time - 1 <= session_end_hour AND  session_end_hour <= end_time))
+        UNION 
         SELECT DISTINCT eid
         FROM Employees
         WHERE depart_date < session_start_date
     ),
     AvailableInstructors AS (
-        SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM MaxHoursQuotaReachedInstructors EXCEPT 
+        (SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM MaxHoursQuotaReachedInstructors) EXCEPT 
         SELECT iid FROM TimeNotAvailableInstructors
     )
     SELECT eid, name 
@@ -474,7 +474,7 @@ BEGIN
                                 SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
                                 FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
                                 ORDER BY iid, s_date) as Y
-                        WHERE r.iid = Y.iid AND Y.s_date = course_start_date + counter_date AND Y.start_time <= counter_hours + 1 AND counter_hours <= Y.end_time + 1
+                        WHERE r.iid = Y.iid AND Y.s_date = course_start_date + counter_date AND (Y.start_time - 1 <= counter_hours AND counter_hours <= Y.end_time + 1) 
                     );
                 avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
             END LOOP;
