@@ -474,7 +474,7 @@ BEGIN
                                 SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
                                 FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
                                 ORDER BY iid, s_date) as Y
-                        WHERE r.iid = Y.iid AND Y.s_date = course_start_date + counter_date AND Y.start_time <= counter_hours AND counter_hours <= Y.end_time
+                        WHERE r.iid = Y.iid AND Y.s_date = course_start_date + counter_date AND Y.start_time <= counter_hours + 1 AND counter_hours <= Y.end_time + 1
                     );
                 avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
             END LOOP;
