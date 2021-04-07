@@ -1206,7 +1206,9 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 IF (EXISTS (
     SELECT 1 
     FROM Employees
-    WHERE eid = iid AND depart_date IS NOT NULL 
+    WHERE eid = iid 
+    AND depart_date IS NOT NULL 
+    AND depart_date < session_start_date
 )) THEN
     RAISE EXCEPTION 'Target instructor has departed';
 END IF;
