@@ -120,6 +120,17 @@ DECLARE
   num_red INTEGER;
   num_reg INTEGER;
 BEGIN
+  IF (EXISTS (
+    SELECT 1
+    FROM Registers
+    WHERE Registers.cust_id = NEW.cust_id AND 
+    Registers.sid = NEW.sid AND 
+    Registers.course_id = NEW.course_id AND 
+    Registers.launch_date = NEW.launch_date
+  )) THEN
+    RAISE EXCEPTION 'Customer % already registered for the session, with sid %, courseid % and launch date %', NEW.cust_id, NEW.sid, NEW.course_id, NEW.launch_date;
+  END IF;
+
   SELECT num_remaining_redemptions INTO num_redemptions_left FROM Buys WHERE Buys.cust_id = NEW.cust_id AND Buys.buy_date = NEW.buy_date AND Buys.package_id = NEW.package_id;
   IF (num_redemptions_left = 0) THEN
     RAISE EXCEPTION 'Failed to redeem due to insufficient remaining redemptions with redemption info: Cust id %, Package id: %, Buy Date: %', NEW.cust_id, NEW.package_id, NEW.buy_date;
@@ -181,6 +192,16 @@ DECLARE
   num_red INTEGER;
   num_reg INTEGER;
 BEGIN
+  IF (EXISTS (
+      SELECT 1
+      FROM Redeems
+      WHERE Redeems.cust_id = NEW.cust_id AND 
+      Redeems.sid = NEW.sid AND 
+      Redeems.course_id = NEW.course_id AND 
+      Redeems.launch_date = NEW.launch_date
+    )) THEN
+      RAISE EXCEPTION 'Customer % already redeemed the session, with sid %, courseid % and launch date %', NEW.cust_id, NEW.sid, NEW.course_id, NEW.launch_date;
+  END IF;
   SELECT Rooms.seating_capacity INTO sess_total_capacity
   FROM Conducts LEFT JOIN Rooms ON Conducts.rid = Rooms.rid
   WHERE Conducts.sid = NEW.sid AND Conducts.course_id = NEW.course_id AND Conducts.launch_date = NEW.launch_date
