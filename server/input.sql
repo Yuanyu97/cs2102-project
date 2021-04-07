@@ -10,13 +10,26 @@ INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', '2021-03-29', '202
 INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', '2021-02-15', '2019-07-15');
 INSERT INTO Credit_cards VALUES('4628 4500 8593 8572', '678', '2021-01-05', '2010-05-28');
 INSERT INTO Credit_cards VALUES('4628 4500 6969 6969', '901', '2025-12-31', '2015-11-09');
+
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9721', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9722', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9723', '619', '2030-09-08', '2021-02-10');
 INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9725', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9726', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4628 4500 5893 9727', '619', '2030-09-08', '2021-02-10');
 
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Freddy', '4628 4500 1234 5678', 'Bishan St 11', 'f@yahoo.com', '81234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Wei Boon', '4628 4500 9876 5432', 'KR Hall', 'W@gmail.com', '89876543');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Weng Fai', '4628 4500 8593 8572', 'Sheares Juzz', 'weng@yahoo.com', '91234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Dian Hao', '4628 4500 6969 6969', 'Best Chai', 'd@outlook.com', '69696969');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins', '4628 4500 5893 9724', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins1', '4628 4500 5893 9721', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins2', '4628 4500 5893 9722', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins3', '4628 4500 5893 9723', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins4', '4628 4500 5893 9724', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins5', '4628 4500 5893 9725', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins6', '4628 4500 5893 9726', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins7', '4628 4500 5893 9727', 'USA', 'ph@onz.com', '61234567');
 
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-15', '2021-06-30', 25, 'React Course', 29.90);
@@ -155,6 +168,7 @@ INSERT INTO Offerings(course_id, launch_date, target_number_registrations, regis
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-10', 100, '2022-07-20', 59.99, 4);
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (2, '2022-07-11', 80, '2022-07-20', 89.99, 4);
 INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (4, '2021-03-15', 80, '2021-03-16', 69.99, 4);
+INSERT INTO Offerings(course_id, launch_date, target_number_registrations, registration_deadline, fees, aid) VALUES (4, '2021-03-16', 80, '2021-04-16', 69.99, 4);
 
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-05-05', 14, 1, '2021-04-11');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(2, '2021-05-06', 10, 1, '2021-04-11');
@@ -175,6 +189,7 @@ INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(9, 
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(10, '2021-04-06', 9, 4, '2021-03-15');
 INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(11, '2021-04-09', 14, 4, '2021-03-15');
 
+INSERT INTO Sessions(sid, s_date, start_time, course_id, launch_date) VALUES(1, '2021-04-27', 9, 4, '2021-03-16');
 
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 1, '2021-04-11', 1, 1);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 2, '2021-04-11', 1, 3);
@@ -193,12 +208,25 @@ INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 9, '2021-03-15', 4, 6);
 INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (6, 'Java', 10, '2021-03-15', 4, 6);
 
+INSERT INTO Conducts(iid, area_name, sid, launch_date, course_id, rid) VALUES (4, 'Java', 1, '2021-03-16', 4, 6);
+
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 2);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 4);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 3);
-INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, CURRENT_DATE, 3);
-INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, CURRENT_DATE, 4);
+
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, '2022-07-15', 3);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, '2022-07-15', 4);
+
+
+
+-- course 4 -3-15
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-15', 4, CURRENT_DATE, 5);
+
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 8);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 9);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 10);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 11);
 
 INSERT INTO Buys(buy_date, cust_id, package_id) VALUES (CURRENT_DATE, 3, 1);
 
