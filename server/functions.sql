@@ -901,6 +901,7 @@ NEGATIVE:
 [?] Payment method does not exist
 [?] Customer id does not exit
 [?] Course offering does not exist
+[?] Not enough seating capacity
 POSITIVE:
 [G] Redemption registration
 [G] Credit card registration
@@ -927,7 +928,7 @@ where Offerings.course_id = offering_course_id AND Offerings.launch_date = offer
 
 -- VALIDATION
 IF (payment_method NOT in ('credit_card', 'redemption')) THEN
-RAISE EXCEPTION 'Payment method must be credit_card or redemption only';
+    RAISE EXCEPTION 'Payment method must be credit_card or redemption only';
 END IF;
 
 -- process redemption transaction
@@ -951,12 +952,12 @@ IF (payment_method = 'redemption') THEN
         Buys.cust_id = target_cid AND 
         Buys.package_id = target_package_id AND 
         Buys.buy_date = target_package_buy_date;
+ELSE
+    -- insert into registration table
+    INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) 
+    VALUES (target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
+
 END IF;
-
-
--- insert into registration table
-INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) 
-VALUES (target_sid, offering_launch_date, offering_course_id, CURRENT_DATE, target_cid);
 
 END;
 $$ LANGUAGE plpgsql;
@@ -985,19 +986,19 @@ BEGIN
 RETURN QUERY
 SELECT distinct Courses.title as course_title, Offerings.fees as fees, Sessions.s_date as s_date,
 Sessions.start_time as start_time, Courses.duration as session_duration, Employees.name as instructor_name
-FROM Courses, Offerings, Sessions, Employees, Registers, Conducts
+FROM Courses, Offerings, Sessions, Employees, registers_redeems_view, Conducts
 WHERE 
 Employees.eid = Conducts.iid AND
 Conducts.course_id = Sessions.course_id AND
 Conducts.launch_date = Sessions.launch_date AND
 Courses.course_id = Offerings.course_id AND
-Sessions.s_date > current_date AND
+Sessions.s_date >= current_date AND
 Sessions.course_id = Offerings.course_id AND
 Sessions.launch_date = Offerings.launch_date AND
-Registers.course_id = Sessions.course_id AND
-Registers.launch_date = Sessions.launch_date AND
-Registers.sid = Sessions.sid AND
-Registers.cust_id = target_cid
+registers_redeems_view.course_id = Sessions.course_id AND
+registers_redeems_view.launch_date = Sessions.launch_date AND
+registers_redeems_view.sid = Sessions.sid AND
+registers_redeems_view.cust_id = target_cid
 ORDER BY Sessions.s_date, Sessions.start_time;
 
 END;
@@ -1019,15 +1020,17 @@ CREATE OR REPLACE PROCEDURE update_course_session(
 ) AS $$
 DECLARE
 target_session_start_date DATE;
+is_redemption_payment BOOLEAN DEFAULT FALSE;
+old_sid INTEGER;
 BEGIN
 
 -- VALIDATION
 -- Customer registered to some session previously
 IF (NOT EXISTS 
-    (SELECT 1 from Registers WHERE 
-        Registers.cust_id = target_cid AND
-        Registers.launch_date = target_offering_launch_date AND
-        Registers.course_id = target_course_id)) THEN
+    (SELECT 1 from registers_redeems_view WHERE 
+        registers_redeems_view.cust_id = target_cid AND
+        registers_redeems_view.launch_date = target_offering_launch_date AND
+        registers_redeems_view.course_id = target_course_id)) THEN
             RAISE EXCEPTION 'Customer % previously has not registered for a session under course offering %, with launch date: %'
                 , new_sid, target_course_id, target_offering_launch_date;
 END IF;
@@ -1053,14 +1056,43 @@ IF (target_session_start_date < CURRENT_DATE) THEN
     RAISE EXCEPTION 'Target session %, is in the past', new_sid;
 END IF;
 
--- Target session has spare seats to be done as a trigger
+SELECT registers_redeems_view.sid INTO old_sid
+FROM registers_redeems_view
+WHERE 
+    registers_redeems_view.cust_id = target_cid AND
+    registers_redeems_view.launch_date = target_offering_launch_date AND
+    registers_redeems_view.course_id = target_course_id;
 
-UPDATE Registers
-SET sid = new_sid,
-registration_date = CURRENT_DATE
-WHERE Registers.launch_date = target_offering_launch_date AND
-Registers.course_id = target_course_id AND
-Registers.cust_id = target_cid;
+IF (EXISTS (
+    SELECT 1
+    FROM Redeems
+    WHERE 
+    Redeems.launch_date = target_offering_launch_date AND
+    Redeems.course_id = target_course_id AND
+    Redeems.cust_id = target_cid AND
+    Redeems.sid = old_sid
+)) THEN 
+    is_redemption_payment := TRUE;
+END IF;
+
+-- update Registers / Redeems accordingly
+IF (is_redemption_payment) THEN 
+    UPDATE Redeems
+    SET sid = new_sid,
+    redeem_date = CURRENT_DATE
+    WHERE Redeems.launch_date = target_offering_launch_date AND
+    Redeems.course_id = target_course_id AND
+    Redeems.cust_id = target_cid AND
+    Redeems.sid = old_sid;
+ELSE 
+    UPDATE Registers
+    SET sid = new_sid,
+    registration_date = CURRENT_DATE
+    WHERE Registers.launch_date = target_offering_launch_date AND
+    Registers.course_id = target_course_id AND
+    Registers.cust_id = target_cid AND
+    Registers.sid = old_sid;
+END IF;
 
 END;
 $$ LANGUAGE plpgsql;
@@ -1069,6 +1101,11 @@ $$ LANGUAGE plpgsql;
 -- -- update Registers table sid to new 
 
 /** 20: cancel / refund registration
+-- Following 4 cases:
+1. <7 Days & CreditCard => Remove Registers
+2. >7 Days & CreditCard => Refund, Remove Registers
+3. <7 Days & Redeems => Remove Redeems
+4. >7 Days & Redeems => Refund, Remove Redeems
 NEGATIVE:
 [?] Customer does not exist
 [?] Customer has not registered for target offering
@@ -1097,24 +1134,24 @@ FROM Offerings
 WHERE Offerings.course_id =  target_course_id AND Offerings.launch_Date = target_offering_launch_date;
 
 -- VALIDATION
--- Check cid is indeed registered
+-- Check cid is indeed registered / redeems for course session
 IF (NOT EXISTS (
     SELECT 1 
-    FROM Registers
+    FROM registers_redeems_view
     WHERE 
-        Registers.launch_date = target_offering_launch_date AND
-        Registers.course_id = target_course_id AND
-        Registers.cust_id = target_cid
+        registers_redeems_view.launch_date = target_offering_launch_date AND
+        registers_redeems_view.course_id = target_course_id AND
+        registers_redeems_view.cust_id = target_cid
 )) THEN
     RAISE EXCEPTION 'Customer %, is not registered for course: %, with launch date: %', target_cid, target_course_id, target_offering_launch_date;
 END IF;
 
-SELECT Registers.sid INTO target_sid
-FROM Registers
+SELECT registers_redeems_view.sid INTO target_sid
+FROM registers_redeems_view
 WHERE 
-    Registers.launch_date = target_offering_launch_date AND
-    Registers.course_id = target_course_id AND
-    Registers.cust_id = target_cid;
+    registers_redeems_view.launch_date = target_offering_launch_date AND
+    registers_redeems_view.course_id = target_course_id AND
+    registers_redeems_view.cust_id = target_cid;
 
 SELECT Sessions.s_date into target_session_s_date
 FROM Sessions
@@ -1136,13 +1173,11 @@ IF (EXISTS (
     is_redemption_payment := TRUE;
 END IF;
 
--- check current date is 7 days before registered session
-IF ((target_session_s_date - CURRENT_DATE) < 7) THEN
-    INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id)
-    VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id);
-ELSE
--- process actual refund
-    IF (is_redemption_payment) THEN
+IF (is_redemption_payment) THEN
+    IF ((target_session_s_date - CURRENT_DATE) < 7) THEN
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id);
+    ELSE
         SELECT Buys.package_id, Buys.buy_date
         INTO target_package_id, target_package_buy_date
         FROM Buys
@@ -1159,25 +1194,38 @@ ELSE
 
         INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, package_credit)
         VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 1);
+    END IF;
+
+    -- remove from redeems table
+    DELETE FROM Redeems 
+    WHERE 
+        Redeems.launch_date = target_offering_launch_date AND
+        Redeems.course_id = target_course_id AND
+        Redeems.cust_id = target_cid AND 
+        Redeems.sid = target_sid AND
+        Redeems.package_id = target_package_id AND
+        Redeems.buy_date = target_package_buy_date;
+ELSE
+    -- credit-card payment
+    IF ((target_session_s_date - CURRENT_DATE) < 7) THEN
+        INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id)
+        VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id);
     ELSE
         INSERT INTO Cancels (cancel_date, cust_id, sid, launch_date, course_id, refund_amt)
         VALUES (CURRENT_DATE, target_cid, target_sid, target_offering_launch_date, target_course_id, 0.9 * target_course_fees);
     END IF;
-END IF;
 
--- remove from registers table
-DELETE FROM Registers 
-WHERE 
-    Registers.launch_date = target_offering_launch_date AND
-    Registers.course_id = target_course_id AND
-    Registers.cust_id = target_cid AND 
-    Registers.sid = target_sid;
+    -- remove from registers table
+    DELETE FROM Registers 
+    WHERE 
+        Registers.launch_date = target_offering_launch_date AND
+        Registers.course_id = target_course_id AND
+        Registers.cust_id = target_cid AND 
+        Registers.sid = target_sid;
+END IF;
 
 END;
 $$ LANGUAGE plpgsql;
--- -- check mapping exists
--- -- remove all registers rows with cid = cid 
--- -- soft delete?
 
 /** 21: Change instructor for a course session
 Testing done:
@@ -1206,9 +1254,11 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 IF (EXISTS (
     SELECT 1 
     FROM Employees
-    WHERE eid = iid AND depart_date IS NOT NULL 
+    WHERE eid = iid 
+    AND depart_date IS NOT NULL 
+    AND depart_date < session_start_date
 )) THEN
-    RAISE EXCEPTION 'Target instructor has departed';
+    RAISE EXCEPTION 'Target instructor has departed before session start date';
 END IF;
 
 IF (session_start_date < CURRENT_DATE) THEN 
@@ -1295,13 +1345,13 @@ END IF;
 
 -- check nobody registered
 IF (EXISTS (
-    SELECT 1 FROM Registers 
+    SELECT 1 FROM registers_redeems_view 
     WHERE 
-        Registers.course_id = target_course_id AND
-        Registers.sid = target_sid AND
-        Registers.launch_date = target_offering_launch_date
+        registers_redeems_view.course_id = target_course_id AND
+        registers_redeems_view.sid = target_sid AND
+        registers_redeems_view.launch_date = target_offering_launch_date
     )) THEN 
-RAISE EXCEPTION 'There is at least one customer registered for session. Thus, removal of target session is invalid';
+    RAISE EXCEPTION 'There is at least one customer registered for session. Thus, removal of target session is invalid';
 END IF;
 
 -- check if session is only one for couse_offering
@@ -1311,7 +1361,7 @@ IF ((SELECT count(*) FROM Sessions
             Sessions.course_id = target_course_id AND
             Sessions.launch_date = target_offering_launch_date) = 1
     ) THEN 
-RAISE EXCEPTION 'Only session is course offering. Thus, removal of target session is invalid';
+    RAISE EXCEPTION 'Only session is course offering. Thus, removal of target session is invalid';
 END IF;
 
 -- actual deletion
@@ -1323,10 +1373,6 @@ WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND la
 
 END;
 $$ LANGUAGE plpgsql;
--- -- check request valid: sid,  exists in Sessions / Conducts
--- -- check: if >=1 registration for session cannot remove!!
--- -- allow seating capacity of course offering to
--- -- fall below course offering target number of reigstrations
 
 /** 24: Add a new session to course offering
 Changes:
