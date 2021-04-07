@@ -2,9 +2,76 @@
 -- NEGATIVE:
 -- [G] Target > seating capacity
 -- [?] Invalid administrator id
+-- [G] No instructor available
+-- POSITIVE:
+-- [G] 
+**/
+-- session
+-- add_course_offering(cid, course_fees, launch_date, reg_deadline, target, admin_id, session_array)
+CALL add_course_offering(1, 99, '2021-03-01', '2021-05-01', 100, 4, 
+array[
+    cast(row('2021-05-02', 10, 4) as session_array),
+    cast(row('2021-05-03', 14, 4) as session_array)
+]);
+-- will throw capacity 34 insufficient
+
+
+CALL add_course_offering(1, 99, '2021-03-01', '2021-05-01', 5, 4, 
+array[
+    cast(row('2021-05-12', 10, 4) as session_array),
+    cast(row('2021-05-13', 14, 4) as session_array)
+]);
+-- will go through
+
+/** 11: Add course package
+-- NEGATIVE:
+-- [?] sale_start_date before today
+-- [G] sale_start_date after sale_end_date
+-- POSITIVE:
+-- [G] 
+**/
+-- add_course_package(package_name, num_free_registrations, sale_start_date, sale_end_date, price)
+call add_course_package('Intro to AI Course', 12, '2021-04-12', '2021-04-16', 3);
+-- 
+
+/** 12: Get_available_course_package
 -- POSITIVE:
 -- [?] 
 **/
+SELECT * FROM get_available_course_packages()
+
+/** 13: Buy course package
+-- NEGATIVE:
+-- [?] package_id does not exist
+-- [?] customer_id does not exist
+-- [?] customer still has active package
+-- POSITIVE:
+-- [G] 
+**/
+-- buy_course_package(cust_id, packaged_id)
+CALL buy_course_package(1, 1);
+
+/** 14: get my course package
+-- NEGATIVE:
+-- [?] 
+-- POSITIVE:
+-- [G] 
+**/
+-- get_my_course_package(cid)
+select * from get_my_course_package(1);
+
+/** 15: get available course offerings
+-- POSITIVE:
+-- [G] 
+**/
+select * from get_available_course_offerings();
+
+/** 16: get available course offerings 
+-- POSITIVE:
+-- [G] 
+**/
+-- get_available_course_sessions(course_id, launch_date );
+select * from get_available_course_sessions();
 
 -- 17
 -- - credit_card registrations are not explicity recorded. 
@@ -17,13 +84,7 @@
 -- [?] Course offering does not exist
 -- POSITIVE:
 -- [?] Redemption registration
--- CREATE OR REPLACE PROCEDURE register_session(
---     target_cid INTEGER, 
---     offering_course_id INTEGER,
---     offering_launch_date DATE,
---     target_sid INTEGER,
---     payment_method TEXT
--- ) AS $$
+-- register_session(cid, course_id, launch_date, sid, payment_method)
 CALL register_session(3, 2, '2022-07-10', 1, 'redemption');
 -- Expected
 -- Registers cid = 3
@@ -33,25 +94,7 @@ CALL register_session(4, 1, '2021-04-11', 1, 'credit_card');
 -- Buys.num_package --
 -- Registers cid = 4
 
-
--- **/
--- CREATE OR REPLACE PROCEDURE register_session(
---     target_cid INTEGER, 
---     offering_course_id INTEGER,
---     offering_launch_date DATE,
-
---     target_sid INTEGER,
---     payment_method TEXT
--- ) AS $$
-
 /** 18: Get all customer registrations
--- only return active registration sessions
--- sorted in ascending order of session date and session start hour
-Testing done:
-NEGATIVE:
-[?] 
-POSITIVE:
-[?] Get all active registration and sorted in order
 **/
 select * from get_my_registrations(1);
 
@@ -63,14 +106,8 @@ NEGATIVE:
 POSITIVE:
 [?] Get all active registration and sorted in order
 **/
--- CREATE OR REPLACE PROCEDURE update_course_session(
---     target_cid INTEGER,
---     target_course_id INTEGER,
---     target_offering_launch_date DATE,
---     new_sid INTEGER
--- ) AS $$
-
-call update_course_session(3, 1, '2022-07-10', 2);
+-- update_course_session(cid, course_id, launch_date, sid)
+call update_course_session(3, 1, '2022-07-11', 2);
 -- ROW 3: 1	"2021-04-11"	1	"2021-04-05"	4
 
 
@@ -82,13 +119,7 @@ POSITIVE:
 [?] Refund credit card payment
 [?] Refund redemption 
 **/
--- if request is valid: process the request with necessary update
--- CREATE OR REPLACE PROCEDURE cancel_registration (
---     target_cid INTEGER,
---     target_course_id INTEGER,
---     target_offering_launch_date DATE
--- ) AS $$
-
+-- cancel_registrations(cid, course_id, launch_date)
 -- NO REFUND
 CALL cancel_registration(3, 1, '2021-04-11');
 -- REFUND CREDITS
@@ -105,12 +136,7 @@ NEGATIVE:
 POSITIVE:
 [G] Standard insertion
 **/
--- CREATE OR REPLACE PROCEDURE update_instructor (
---     target_course_id INTEGER,
---     target_offering_launch_date DATE,
---     target_sid INTEGER,
---     new_iid INTEGER -- Conducts
--- ) AS $$
+-- update_instructor(course_id, launch_date, sid, iid)
 CALL update_instructor(2, '2022-07-10', 1, 6);
 -- will throw
 
@@ -127,12 +153,7 @@ NEGATIVE:
 POSITIVE:
 [?] Standard update - TBC with freddy trigger which sets to old rid
 **/
--- CREATE OR REPLACE PROCEDURE update_room (
---     target_course_id INTEGER,
---     target_offering_launch_date DATE,
---     target_sid INTEGER,
---     new_rid INTEGER
--- ) AS $$
+-- update_room(course_id, launch_date, sid, rid)
 call update_room(2, '2022-07-10', 1, 7);
 -- row 3: 5	"Python"	7	1	"2022-07-10"	2
 
@@ -146,11 +167,7 @@ POSITIVE:
 [?] Standard removal
 [?] Only session of course_offering should cascade delete course_offering
 **/
--- CREATE OR REPLACE PROCEDURE remove_session(
---     target_course_id INTEGER,
---     target_offering_launch_date DATE,
---     target_sid INTEGER
--- ) AS $$
+-- remove_session(course_id, launch_date, sid)
 call remove_session(2, '2022-07-10', 1);
 -- will throw: have customer registered
 call remove_session(2, '2022-07-10', 2);
@@ -170,15 +187,7 @@ NEGATIVE:
 POSITIVE:
 [G] Standard insertion
 **/ 
--- CREATE OR REPLACE PROCEDURE add_session(
---     offering_course_id INTEGER,
---     offering_launch_date DATE,
---     new_sid INTEGER,
---     s_date DATE,
---     start_hour INTEGER,
---     iid INTEGER,
---     rid INTEGER
--- ) AS $$
+-- add_session(course_id, launch_date, sid, s_date, start_hour, iid, rid)
 call add_session(2, '2022-07-11', 4, '2022-08-06',10, 5, 4);
 -- pass
 call add_session(2, '2022-07-11', 4, '2020-08-06',10, 5, 4);
