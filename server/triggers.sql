@@ -317,7 +317,7 @@ BEGIN
     IF (NEW.registration_date > session_registration_deadline) OR EXISTS(
         SELECT 1
         FROM Registers 
-        WHERE cust_id = NEW.cust_id
+        WHERE cust_id = NEW.cust_id AND course_id = NEW.course_id
     ) THEN RETURN NULL;
     END IF;
     RETURN NEW;
