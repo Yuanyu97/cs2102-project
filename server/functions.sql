@@ -639,7 +639,7 @@ LOOP
                     arr := array_append(arr, start_hour_2);
                 END IF;
                 start_hour_2 := start_hour_2 + 1;
-                IF (start_hour_2 > 18) THEN
+                IF (start_hour_2 >= 18) THEN
                     start_hour_2 := 14;
                     EXIT;
                 END IF;
@@ -1648,6 +1648,372 @@ begin
 		
 	end loop;
 	
+
+
+end;
+$$ language plpgsql;
+
+create or replace function popular_courses()
+returns table(
+course_id integer,
+title text,
+area_name text,
+num_offerings BIGINT,
+num_register BIGINT
+) as $$
+BEGIN
+RETURN QUERY
+with table_1 as (Select Courses.course_id from
+Courses natural join offerings
+group by Courses.course_id
+having count(*) >= 2
+except
+(SELECT X.course_id
+FROM (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
+from Offerings natural left join Registers
+group by (Offerings.course_id, Offerings.launch_date)) AS X
+ cross join 
+ (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
+from Offerings natural left join Registers
+group by (Offerings.course_id, Offerings.launch_date)) AS Y
+ WHERE X.course_id = Y.course_id AND
+ X.launch_date <> Y.launch_date AND
+ X.launch_date > Y.launch_date AND
+ X.num_registers <= Y.num_registers)),
+ 
+table_2 as (
+select Courses.course_id, count(*) as num_offerings from 
+Courses natural join offerings
+group by Courses.course_id
+having count(*) >= 2
+ ),
+ 
+table_3 as (
+ select Offerings.course_id, count(*) as num_registers
+from Offerings natural join Registers
+group by (Offerings.course_id)
+ )
+
+
+select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
+from courses natural join table_1 natural join table_2 natural join table_3;
+
+end;
+$$ language plpgsql;
+
+create or replace function top_packages(in n integer)
+returns table (
+package_id integer,
+num_free_registrations integer,
+price numeric,
+sale_start_date date,
+sale_end_date date,
+num_sold bigint
+) as $$
+
+declare
+
+begin
+return query
+	with cte as (select course_packages.package_id, 
+		course_packages.num_free_registrations, 
+		course_packages.price, 
+		course_packages.sale_start_date, 
+		course_packages.sale_end_date, 
+		c.num_sold,
+		rank() over (
+			order by c.num_sold desc
+		) as rankING
+	from course_packages join 
+		(select buys.package_id, count(*) as num_sold from buys group by buys.package_id) as c
+	on course_packages.package_id = c.package_id
+	order by num_sold desc, price desc)
+	
+	select cte.package_id,
+		cte.num_free_registrations,
+		cte.price,
+		cte.sale_start_date,
+		cte.sale_end_date,
+		cte.num_sold
+	from cte
+	where cte.ranking <= n;
+
+	-- maybe can use rank() function to deal w the tiebreaker cases? couldnt test it, 
+	
+end;
+$$ language plpgsql;
+
+create or replace function pay_salary ()
+returns table (
+eid integer,
+name text,
+status text,
+num_work_days integer,
+num_work_hours integer,
+hourly_rate numeric,
+monthly_salary numeric,
+amount numeric) AS $$
+
+declare
+	curs cursor FOR (select * from employees order by eid asc);
+	r record;
+	num_days integer;
+	num_hours integer;
+    max_days integer;
+	is_parttime boolean default FALSE;
+	is_fulltime boolean default FALSE;
+begin
+	open curs;
+	loop
+		fetch curs into r;
+		exit when not found;
+		eid := r.eid;
+		name := r.name;
+		select exists (select 1 from part_time_emp P where P.eid = r.eid) into is_parttime;
+
+		select exists (select 1 from full_time_emp F where F.eid = r.eid) into is_fulltime;
+		
+		if (is_parttime = TRUE) then
+		-- is a part_time_emp, calculate using hourly rate
+			status := 'part-time';
+			num_work_days := null;
+			monthly_salary := null;
+			num_work_hours := get_work_hours(eid);
+			select P.hourly_rate from part_time_emp P where P.eid = r.eid into hourly_rate;
+			amount := num_work_hours * hourly_rate;
+			
+			if (amount is not null) then
+			insert into pay_slips_for(eid, payment_date, num_work_hours, num_work_days, amount)
+				values (eid, current_date, num_work_hours, null, amount);
+			
+			return next;
+			end if;
+			
+			
+
+		elsif (is_fulltime = TRUE) then
+		-- is a full_time_emp, calculate using monthly salary
+			status := 'full-time';
+			num_work_hours := null;
+			hourly_rate := null;
+			num_work_days := get_work_days(eid);
+			select P.monthly_salary from full_time_emp P where P.eid = r.eid into monthly_salary;
+
+            select extract('day' from (date_trunc('month', current_date) + interval '1 month' - interval '1    day')) into max_days;
+			amount := num_work_days * monthly_salary / max_days;
+
+			if (amount is not null) then
+			insert into pay_slips_for(eid, payment_date, num_work_hours, num_work_days, amount)
+				values (eid, current_date, null, num_work_days, amount);
+			return next;
+			end if;	
+			
+		end if;
+	end loop;
+	close curs;
+end;
+$$ language plpgsql;
+
+create or replace function get_work_hours(in eid integer, out total integer)
+returns integer as $$
+-- find eid occurrence in conducts table, (as iid)
+-- for each sid (under that iid), check sessions table to take end_time - start_time for duration
+declare
+	curs1 cursor FOR (
+		select sid, start_time, end_time
+		from sessions
+		where exists (
+			select sid
+			from conducts	
+			where sid = eid
+		)
+	);
+	r record;
+	start integer;
+	end1 integer;
+	diff integer;
+
+begin
+	total := 0;
+	open curs1;
+	
+	loop
+		fetch curs1 into r;
+		exit when not found;
+		start := r.start_time;
+		end1 := r.end_time;
+		diff := end1 - start;
+		total := total + diff;
+
+	end loop;
+	close curs1;
+end;
+$$ language plpgsql;
+
+
+create or replace function get_work_days(in eid1 integer, out total integer)
+returns integer as $$
+-- find eid occurrence in employees table (as eid)
+-- first work day = 1, unless join date within month of payment
+-- last work day = num of days in the month (if depart_date = null) unless,
+--  case 1: departed date is within month of payment (ie recently departed)
+--  case 2: departed date is in previous month (ie no longer need to pay)
+declare
+ first integer;
+ last integer;
+ join_month integer;
+ depart_month integer;
+ current_month integer;
+
+begin
+ select extract('month' from employees.join_date) into join_month from employees where employees.eid =  eid1;
+ select extract('month' from employees.depart_date) into depart_month from employees where employees.eid =  eid1;
+ select extract('month' from current_date) into current_month;
+ 
+ 
+ total := 0;
+ if (join_month = current_month) then
+  -- first work day within month of payment
+  select extract('day' from employees.join_date) into first from employees where employees.eid =   eid1;
+ else
+  first := 1;
+ end if;
+
+ if (depart_month IS NULL) then
+  -- has not departed
+  select extract('day' from (date_trunc('month', current_date) + interval '1 month' - interval '1    day')) into last;
+ elsif (depart_month = current_month) then
+  -- departed this month
+  select extract('day' from employees.depart_date) into last from employees where employees.eid =   eid1;
+ elsif (depart_month <> current_month) then
+  -- departed before this month
+    total := null;
+    return;
+  return;
+ end if;
+ 
+ total := last - first + 1;
+
+end;
+$$ language plpgsql;
+
+create or replace function promote_courses()
+returns table (
+target_cust_id integer,
+target_cust_name text,
+target_area_name text,
+target_course_id integer,
+target_title text,
+target_launch_date date,
+target_registration_deadline date,
+target_fees numeric
+) as $$
+
+declare
+	curs refcursor;
+	curs1 refcursor;
+	curs2 refcursor;
+	r record;
+	r1 record;
+	r2 record;
+	is_empty boolean default false;
+	is_empty1 boolean default false;
+begin
+	curs := 'curs_name1';
+	curs1 := 'curs_name2';
+	curs2 := 'curs_name3';
+	--find all inactive customers (customers - those that registered within 6 mth)
+	open curs for select cust_id
+	from customers
+	except (select cust_id
+		from registers
+		where registration_date > (current_date - interval '6 months')
+	)
+	order by cust_id asc;
+
+	-- for each customer, find course area A that they are interested in
+	loop
+		fetch curs into r;
+		exit when not found;
+		
+		target_cust_id := r.cust_id;
+		select name
+		from customers
+		where cust_id = r.cust_id
+		into target_cust_name;
+		
+-- find all course areas A that they are interested in (can return 3, 2 ,1 or all)
+		
+		with interested_table as (select registers_redeems_view.course_id
+		from registers_redeems_view 
+		where registers_redeems_view.cust_id = r.cust_id
+		order by registration_date desc
+		limit 3)
+		
+		select not exists (select 1 from interested_table) into is_empty;
+		
+		if (is_empty = FALSE) then
+			open curs1 for (select registers_redeems_view.course_id
+							from registers_redeems_view 
+							where registers_redeems_view.cust_id = r.cust_id
+							order by registration_date desc
+							limit 3);
+		elsif (is_empty = TRUE) then
+			open curs1 for select course_id from courses;
+		end if;
+
+		loop
+			fetch curs1 into r1;
+			exit when not found;
+		
+			select area_name
+			from Courses
+			where Courses.course_id = r1.course_id
+			into target_area_name;
+			
+			target_course_id := r1.course_id;
+			
+			select title
+			from Courses
+			where Courses.course_id = r1.course_id
+			into target_title;
+		
+			with offering_table as (select course_id, launch_date, registration_deadline, fees
+			from offerings
+			where offerings.course_id = r1.course_id
+			and launch_date <= current_date
+			and current_date <= registration_deadline)
+
+			select not exists (select 1 from offering_table) into is_empty1;
+		
+			if (is_empty1 = FALSE) then 
+				open curs2 for (select course_id, launch_date, registration_deadline, fees
+								from offerings
+								where offerings.course_id = r1.course_id
+								and launch_date <= current_date
+								and current_date <= registration_deadline);
+				
+				loop
+					fetch curs2 into r2;
+					exit when not found;
+					
+					target_launch_date := r2.launch_date;
+					target_registration_deadline := r2.registration_deadline;
+					target_fees := r2.fees;
+					
+					return next;
+					
+				end loop;
+				close curs2;
+			end if;
+			
+		end loop;
+		close curs1;
+		
+	
+	end loop;
+
+close curs;
 
 
 end;
