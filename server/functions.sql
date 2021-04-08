@@ -1498,7 +1498,7 @@ manager_name text,
 -- output is sorted by manager_name asc
 num_course_areas bigint,
 -- from course_areas table, group by mid and count(*)
-num_course_offerings bigint,
+num_course_offerings numeric,
 -- for each course_area (curs in course_areas table), group by course_area and date, 
 total_reg_fees numeric,
 
@@ -1510,7 +1510,7 @@ declare
 begin
 
 RETURN QUERY
-With table_one as (SELECT Table1.mid, Table1.name, Table1.num_course_areas, Table2.course_id, COALESCE(Table2.num_offerings, 0) as num_offerings, Table2.launch_date FROM
+with table_one as (SELECT Table1.mid, Table1.name, Table1.num_course_areas, Table2.course_id, COALESCE(Table2.num_offerings, 0) as num_offerings, Table2.launch_date FROM
 (SELECT Managers.mid, Employees.name, COUNT(DISTINCT area_name) as num_course_areas
  FROM Managers INNER JOIN employees on mid = eid
  LEFT JOIN Course_areas ON Managers.mid = Course_areas.mid
@@ -1520,24 +1520,26 @@ With table_one as (SELECT Table1.mid, Table1.name, Table1.num_course_areas, Tabl
 FROM Managers LEFT JOIN Course_areas ON Managers.mid = Course_areas.mid LEFT JOIN Courses ON Course_areas.area_name = Courses.area_name LEFT JOIN Offerings ON Courses.course_id = Offerings.course_id
 WHERE EXTRACT('year' FROM Offerings.end_date) = EXTRACT('year' FROM CURRENT_DATE)
 GROUP BY Managers.mid, Courses.course_id, Offerings.launch_date) AS Table2
-ON Table1.mid = Table2.mid),
+ON Table1.mid = Table2.mid)
 
-table_two as (select *, get_total_net_registration_fees(launch_date, course_id) as total_fees
-from table_one),
 
-table_three as (select mid as mid_max, max(total_fees) as fees_max
+,table_two as (select *, get_total_net_registration_fees(launch_date, course_id) as total_fees
+from table_one)
+
+
+,table_three as(select mid as mid_max, max(total_fees) as fees_max, sum(num_offerings) as num_c_offerings
 from table_two
-group by mid),
+group by mid)
 
-table_four as (select *
+,table_four as (select *
 from table_two cross join table_three
 where mid = mid_max
 and total_fees is not distinct from fees_max)
 
-select table_four.name, table_four.num_course_areas, table_four.num_offerings, table_four.total_fees, array_agg(C.title) as "title(s)"
+select table_four.name, table_four.num_course_areas, num_c_offerings, table_four.total_fees, array_agg(C.title) as "title(s)"
 from table_four left outer join (select course_id, title from courses) as C
 on table_four.course_id = C.course_id
-group by table_four.name, table_four.num_course_areas, table_four.num_offerings, table_four.total_fees;
+group by table_four.name, table_four.num_course_areas, num_c_offerings, table_four.total_fees;
 
 end;
 $$ language plpgsql;
@@ -1661,7 +1663,10 @@ area_name text,
 num_offerings BIGINT,
 num_register BIGINT
 ) as $$
+DECLARE
+ curr_year integer;
 BEGIN
+    select extract('year' from current_date) into curr_year;
 RETURN QUERY
 with table_1 as (Select Courses.course_id from
 Courses natural join offerings
@@ -1669,12 +1674,12 @@ group by Courses.course_id
 having count(*) >= 2
 except
 (SELECT X.course_id
-FROM (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
-from Offerings natural left join Registers
+FROM (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
+from Offerings natural left join Registers_redeems_view
 group by (Offerings.course_id, Offerings.launch_date)) AS X
  cross join 
- (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
-from Offerings natural left join Registers
+ (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
+from Offerings natural left join Registers_redeems_view
 group by (Offerings.course_id, Offerings.launch_date)) AS Y
  WHERE X.course_id = Y.course_id AND
  X.launch_date <> Y.launch_date AND
@@ -1690,13 +1695,13 @@ having count(*) >= 2
  
 table_3 as (
  select Offerings.course_id, count(*) as num_registers
-from Offerings natural join Registers
+from Offerings natural join Registers_redeems_view
 group by (Offerings.course_id)
  )
 
 
 select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
-from courses natural join table_1 natural join table_2 natural join table_3;
+from courses natural join table_1 natural join table_2 natural left join table_3;
 
 end;
 $$ language plpgsql;

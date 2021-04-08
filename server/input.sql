@@ -412,6 +412,11 @@ CALL add_course_offering_input(1, 99, '2021-03-01', '2021-05-01', 100, 21, array
     cast(row('2021-05-12', 9, 7) as session_array),
     cast(row('2021-05-13', 14, 7) as session_array)
 ]);
+--duplicate course offering for course_id = 1
+CALL add_course_offering_input(1, 99, '2021-01-01', '2021-05-01', 50, 21, array[
+    cast(row('2021-05-12', 9, 7) as session_array),
+    cast(row('2021-05-13', 14, 7) as session_array)
+]);
 CALL add_course_offering_input(2, 20, '2021-03-05', '2021-06-15', 5, 22, 
 array[
     cast(row('2021-06-28', 10, 1) as session_array),
@@ -453,6 +458,12 @@ array[
     cast(row('2019-11-13', 14, 2) as session_array)
 ]);
 CALL add_course_offering_input(10, 77.10, '2021-04-01', '2021-05-10', 18, 30, 
+array[
+    cast(row('2021-05-24', 10, 10) as session_array),
+    cast(row('2021-05-25', 14, 9) as session_array)
+]);
+--additional course offering for course_id = 10
+CALL add_course_offering_input(10, 99.10, '2021-01-02', '2021-05-10', 18, 30, 
 array[
     cast(row('2021-05-24', 10, 10) as session_array),
     cast(row('2021-05-25', 14, 9) as session_array)
