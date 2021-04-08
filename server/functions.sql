@@ -639,7 +639,7 @@ LOOP
                     arr := array_append(arr, start_hour_2);
                 END IF;
                 start_hour_2 := start_hour_2 + 1;
-                IF (start_hour_2 > 18) THEN
+                IF (start_hour_2 >= 18) THEN
                     start_hour_2 := 14;
                     EXIT;
                 END IF;
