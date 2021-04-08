@@ -194,7 +194,7 @@ CREATE TABLE Conducts (
   FOREIGN KEY (sid, course_id, launch_date) REFERENCES Sessions
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  PRIMARY KEY (iid, area_name, rid, sid, course_id)
+  PRIMARY KEY (iid, area_name, rid, sid, course_id, launch_date)
 );
 
 -- checked (what is package_credit??)
