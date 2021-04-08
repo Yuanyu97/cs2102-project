@@ -5,6 +5,7 @@ INSERT INTO Rooms(location, seating_capacity) VALUES('Whompoa', 17);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Lorong Chuan', 30);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Tenteram', 13);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Ang Mo Kio', 50);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Small Room', 1);
 
 INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', '2021-03-29', '2020-03-29');
 INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', '2021-02-15', '2019-07-15');
