@@ -1258,7 +1258,7 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 IF (EXISTS (
     SELECT 1 
     FROM Employees
-    WHERE eid = iid 
+    WHERE Employees.eid = new_iid 
     AND depart_date IS NOT NULL 
     AND depart_date < session_start_date
 )) THEN
@@ -1305,10 +1305,6 @@ RAISE EXCEPTION 'Course session has started';
 END IF;
 
 -- actual update
-UPDATE Sessions
-SET rid = new_rid
-WHERE Sessions.course_id = target_course_id AND Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date;
-
 UPDATE Conducts
 SET rid = new_rid
 WHERE Conducts.course_id = target_course_id AND Conducts.sid = target_sid AND Conducts.launch_date = target_offering_launch_date;
@@ -1343,7 +1339,15 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 -- VALIDATION
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
-RAISE EXCEPTION 'Course session has started';
+    RAISE EXCEPTION 'Course session has started';
+END IF;
+
+IF (NOT EXISTS (
+    SELECT 1 
+    FROM Sessions
+    WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date
+)) THEN 
+    RAISE EXCEPTION 'Course session does not exist';
 END IF;
 
 -- check nobody registered
