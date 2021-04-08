@@ -1399,7 +1399,7 @@ CREATE OR REPLACE PROCEDURE add_session (
     new_sid INTEGER,
     s_date DATE,
     start_hour INTEGER,
-    iid INTEGER,
+    target_iid INTEGER,
     rid INTEGER
 ) AS $$
 DECLARE
@@ -1409,8 +1409,6 @@ offering_end_date DATE;
 course_area_name TEXT;
 offering_duration INTEGER;
 BEGIN
-
--- check start_hour is valid number
 
 -- chekc No two sessions for the same course offering can be conducted on the same day and at the same time
 
@@ -1429,12 +1427,22 @@ IF (offering_registration_deadline < CURRENT_DATE) THEN
 RAISE EXCEPTION 'Specified course offering registration deadline has passed';
 END IF;
 
+IF (EXISTS (
+    SELECT 1 
+    FROM Employees
+    WHERE Employees.eid = target_iid 
+    AND depart_date IS NOT NULL 
+    AND depart_date < session_start_date
+)) THEN
+    RAISE EXCEPTION 'Target instructor has departed before session start date';
+END IF;
+
 -- insert into sessions here
 INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date, rid) 
     VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date,rid);
 
 INSERT INTO Conducts(iid, area_name, sid, course_id, rid) 
-    VALUES (iid, course_area_name, new_sid, offering_course_id, rid);
+    VALUES (target_iid, course_area_name, new_sid, offering_course_id, rid);
 
 END;
 $$ LANGUAGE plpgsql;
@@ -1534,5 +1542,113 @@ group by table_four.name, table_four.num_course_areas, table_four.num_offerings,
 end;
 $$ language plpgsql;
 
+-- Q29
+create or replace function view_summary_report (in n integer)
+returns table (
+summary_month integer,
+summary_year integer,
+total_salary integer,
+-- for total salary, from pay_slips_for, group by payment_date's month/year and sum() pay_slips_for's amount
+total_sales integer,
+-- for total sales, from course_packages and buys, join on package_id, group by buy_date's month/year and sum() course_package's price
+total_registration_fees integer,
+-- for total registration, from registers join sessions join offerings, group by registration_date's month/year and sum() offering's fee
+total_refunded_fees integer,
+-- for total refunded, from cancels, group by cancel_date's month/year and sum() refund_amt
+total_redemptions integer
+-- for total redemptions, from redeems, group by redeem_date's month/year and count(*)
+) as $$
+
+declare
+	start integer;
+	curr_month integer;
+	curr_year integer;
+	
+begin
+	start := 1;
+	curr_month := extract('month' from current_date) + 1;
+	curr_year := extract('year' from current_date);
+
+	loop
+		exit when n = 0;
+		raise notice 'start:%', start;
+		curr_month := curr_month - start;
+				raise notice 'cur_month:%	', curr_month;
+		if (curr_month = 0) then
+		--jan minus 1 month is december of previous year
+			raise notice 'inside loop';
+			curr_month := 12;
+			curr_year := curr_year - 1;
+		end if;
+		summary_month := curr_month;
+		summary_year := curr_year;
+		
+		--total salary
+		select G.sum
+		from 	(select extract('month' from payment_date) as pay_month, 
+				extract('year' from payment_date) as pay_year, 
+				sum(amount) as sum
+			from pay_slips_for
+			group by 1,2) as G
+		where G.pay_month = curr_month
+		and G.pay_year = curr_year
+		into total_salary;
+		
+		--total sales
+		select B.sum
+		from	(select extract('month' from Buys.buy_date) as buy_month,
+				extract('year' from Buys.buy_date) as buy_year,
+				sum(Course_packages.price) as sum
+			from Buys join Course_packages
+			on Buys.package_id = Course_packages.package_id
+			group by 1,2) as B
+		where B.buy_month = curr_month
+		and B.buy_year = curr_year
+		into total_sales;
+		
+		--total registration fees
+		select R.sum
+		from	(select extract('month' from Registers.registration_date) as reg_month,
+				extract('year' from Registers.registration_date) as reg_year,
+				sum(Offerings.fees) as sum
+			from (Sessions natural join Offerings) 
+			natural join Registers
+			group by 1,2) as R
+		where R.reg_month = curr_month
+		and R.reg_year = curr_year
+		into total_registration_fees;
+
+		--total refunded fees
+		select C.sum
+		from	(select extract('month' from Cancels.cancel_date) as cancel_month,
+				extract('year' from Cancels.cancel_date) as cancel_year,
+				sum(Cancels.refund_amt) as sum
+			from Cancels
+			group by 1,2) as C
+		where C.cancel_month = curr_month
+		and C.cancel_year = curr_year
+		into total_refunded_fees;
+
+		--total redemptions
+
+		select T.sum
+		from	(select extract('month' from Redeems.redeem_date) as redeem_month,
+				extract('year' from Redeems.redeem_date) as redeem_year,
+				count(*) as sum
+			from Redeems
+			group by 1,2) as T
+		where T.redeem_month = curr_month
+		AND T.redeem_year = curr_year
+		into total_redemptions;
+		
+		n:= n - 1;
+		return next;
 
 
+		
+	end loop;
+	
+
+
+end;
+$$ language plpgsql;
