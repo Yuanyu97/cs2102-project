@@ -1652,3 +1652,51 @@ begin
 
 end;
 $$ language plpgsql;
+
+create or replace function popular_courses()
+returns table(
+course_id integer,
+title text,
+area_name text,
+num_offerings BIGINT,
+num_register BIGINT
+) as $$
+BEGIN
+RETURN QUERY
+with table_1 as (Select Courses.course_id from
+Courses natural join offerings
+group by Courses.course_id
+having count(*) >= 2
+except
+(SELECT X.course_id
+FROM (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
+from Offerings natural left join Registers
+group by (Offerings.course_id, Offerings.launch_date)) AS X
+ cross join 
+ (select Offerings.course_id, Offerings.launch_date, count(*) as num_registers
+from Offerings natural left join Registers
+group by (Offerings.course_id, Offerings.launch_date)) AS Y
+ WHERE X.course_id = Y.course_id AND
+ X.launch_date <> Y.launch_date AND
+ X.launch_date > Y.launch_date AND
+ X.num_registers <= Y.num_registers)),
+ 
+table_2 as (
+select Courses.course_id, count(*) as num_offerings from 
+Courses natural join offerings
+group by Courses.course_id
+having count(*) >= 2
+ ),
+ 
+table_3 as (
+ select Offerings.course_id, count(*) as num_registers
+from Offerings natural join Registers
+group by (Offerings.course_id)
+ )
+
+
+select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
+from courses natural join table_1 natural join table_2 natural join table_3;
+
+end;
+$$ language plpgsql;
