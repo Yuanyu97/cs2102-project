@@ -50,6 +50,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE buy_course_package_input(
+_cust_id INTEGER,
+_package_id INTEGER,
+_purchase_date DATE) AS $$
+DECLARE
+sale_start_date DATE;
+sale_end_date DATE;
+BEGIN
+SELECT Course_packages.sale_start_date, Course_packages.sale_end_date into sale_start_date, sale_end_date FROM Course_packages WHERE Course_packages.package_id = _package_id;
+IF (sale_end_date >= _purchase_date AND sale_start_date <= _purchase_date) THEN
+INSERT INTO Buys(buy_date, cust_id, package_id) VALUES(_purchase_date, _cust_id,  _package_id);
+ELSE
+RAISE EXCEPTION 'Course Package is not on sale';
+END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 INSERT INTO Rooms(location, seating_capacity) VALUES('Bishan', 10);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Serangoon', 5);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Punggol', 20);
@@ -85,16 +102,16 @@ INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('L
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Peggy Tan', '4628 4500 5893 9726', 'USA', 'ph@onz.com', '61234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Demacia Wong', '4628 4500 5893 9727', 'USA', 'ph@onz.com', '61234567');
 
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-15', '2021-06-30', 25, 'React Course', 29.90);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-02-24', '2022-04-18', 50, 'Ruby Course', 10.90);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2022-06-30', '2022-09-26', 35, 'Rest API Course', 8.88);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-01-24', '2021-11-22', 10, 'Java Course', 109.99);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-09-20', '2021-10-11', 55, 'Excel VBA', 109.99);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-02-15', '2021-07-03', 15, 'Intro To Pysch', 19.99);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-11', '2022-04-14', 40, 'Ethics In Computing', 20.80);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2023-07-01', '2023-08-22', 45, 'Competitive Programming', 49.99);
-INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-29', '2021-04-15', 69, 'Nano Technology', 55.55);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-04-15', '2021-06-30', 25, 'React Course', 29.90);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-02-24', '2022-04-18', 50, 'Ruby Course', 10.90);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-06-30', '2022-09-26', 35, 'Rest API Course', 8.88);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-01-24', '2021-11-22', 10, 'Java Course', 109.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-09-20', '2021-10-11', 55, 'Excel VBA', 109.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-02-15', '2021-07-03', 15, 'Intro To Pysch', 19.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-03-11', '2022-04-14', 40, 'Ethics In Computing', 20.80);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-07-01', '2023-08-22', 45, 'Competitive Programming', 49.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-03-29', '2021-04-15', 69, 'Nano Technology', 55.55);
 
 INSERT INTO Employees(name, address, phone, email, join_date, depart_date) VALUES('Jerry Bom', 'Bishan St 11', '81234567', 'f@yahoo.com', '1997-04-26', null);
 INSERT INTO Employees(name, address, phone, email, join_date, depart_date) VALUES('Yup Ying Hao', 'KR Hall', '89876543', 'W@gmail.com', '2000-07-21', '2020-12-31');
@@ -366,48 +383,40 @@ array[
 
 -- CREATE OR REPLACE PROCEDURE buy_course_package(
 -- _cust_id INTEGER,
--- _package_id INTEGER) AS $$
-CALL buy_course_package(1, 1);
-CALL buy_course_package(2, 1);
-CALL buy_course_package(3, 3);
-CALL buy_course_package(4, 3);
-CALL buy_course_package(5, 5);
-CALL buy_course_package(6, 7);
-CALL buy_course_package(7, 7);
-CALL buy_course_package(8, 8);
-CALL buy_course_package(9, 8);
-CALL buy_course_package(10, 10);
+-- _package_id INTEGER,
+-- _purchase_date DATE) AS $$
+CALL buy_course_package_input(1, 1, '2020-04-05');
+CALL buy_course_package_input(2, 2, '2020-05-10');
+CALL buy_course_package_input(3, 3, '2020-06-22');
+CALL buy_course_package_input(4, 4, '2020-07-25');
+CALL buy_course_package_input(5, 5, '2020-06-11');
+CALL buy_course_package_input(6, 6, '2020-01-06');
+CALL buy_course_package_input(7, 7, '2020-02-20');
+CALL buy_course_package_input(8, 8, '2020-03-19');
+CALL buy_course_package_input(9, 9, '2020-04-12');
+CALL buy_course_package_input(10, 10, '2020-02-22');
 
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 3);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 4);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 5);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 5);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 7);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 8);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 9);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 10);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2019-02-19', 9, '2019-11-01', 1);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2020-04-24', 6, '2020-04-24', 1);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2019-02-19', 9, '2019-10-30', 2);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-01', 1, '2021-03-01', 4);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-02-28', 4, '2021-02-28', 5);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2020-04-24', 6, '2020-04-24', 6);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2019-02-19', 9, '2019-02-19', 7);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-01', 10, '2021-04-01', 8);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-01-21', 8, '2021-01-21', 9);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-01', 10, '2021-04-01', 10);
 
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 1);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-04-11', 1, CURRENT_DATE, 2);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 4);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2021-04-11', 1, CURRENT_DATE, 3);
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-06', '2020-04-05', 1, 1, 1, 1, '2021-03-01');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-05-11', '2020-05-10', 2, 2, 1, 1, '2021-03-01');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-06-23', '2020-06-22', 3, 3, 1, 4, '2021-02-28');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-07-26', '2020-07-25', 4, 4, 1, 6, '2020-04-24');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-06-12', '2020-06-11', 5, 5, 1, 9, '2019-02-19');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-02', '2020-01-06', 6, 6, 1, 10, '2021-04-01');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-21', '2020-02-20', 7, 7, 2, 8, '2021-01-21');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-03-20', '2020-03-19', 8, 8, 2, 10, '2021-04-01');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-13', '2020-04-12', 9, 9, 2, 9, '2019-02-19');
+INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-23', '2020-02-22', 10, 10, 1, 6, '2020-04-24');
 
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, '2022-07-15', 3);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2022-07-10', 2, '2022-07-15', 4);
 
-
-
--- -- course 4 -3-15
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-15', 4, CURRENT_DATE, 5);
-
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 8);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 9);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 10);
--- INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-16', 4, CURRENT_DATE, 11);
-
--- INSERT INTO Buys(buy_date, cust_id, package_id) VALUES (CURRENT_DATE, 3, 1);
-
--- INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 1, '2021-04-11');
 -- INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 2, '2022-07-10');
