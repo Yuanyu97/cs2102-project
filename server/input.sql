@@ -6,6 +6,9 @@ INSERT INTO Rooms(location, seating_capacity) VALUES('Lorong Chuan', 30);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Tenteram', 13);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Ang Mo Kio', 50);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Small Room', 1);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Another Small Room', 4);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Third Small Room', 3);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Fourth Small Room', 3);
 
 INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', '2021-03-29', '2020-03-29');
 INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', '2021-02-15', '2019-07-15');
@@ -19,6 +22,9 @@ INSERT INTO Credit_cards VALUES('4628 4500 5893 9724', '619', '2030-09-08', '202
 INSERT INTO Credit_cards VALUES('4628 4500 5893 9725', '619', '2030-09-08', '2021-02-10');
 INSERT INTO Credit_cards VALUES('4628 4500 5893 9726', '619', '2030-09-08', '2021-02-10');
 INSERT INTO Credit_cards VALUES('4628 4500 5893 9727', '619', '2030-09-08', '2021-02-10');
+INSERT INTO Credit_cards VALUES('4545 4936 5801 9719', '545', '2022-12-30', CURRENT_DATE);
+INSERT INTO Credit_cards VALUES('4500 4500 4500 4500', '450', '2020-12-30', '2020-05-17');
+INSERT INTO Credit_cards VALUES('4514 4514 4514 4514', '451', '2021-12-05', '2020-12-20');
 
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Freddy', '4628 4500 1234 5678', 'Bishan St 11', 'f@yahoo.com', '81234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Wei Boon', '4628 4500 9876 5432', 'KR Hall', 'W@gmail.com', '89876543');
@@ -31,12 +37,19 @@ INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('J
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins5', '4628 4500 5893 9725', 'USA', 'ph@onz.com', '61234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins6', '4628 4500 5893 9726', 'USA', 'ph@onz.com', '61234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Sins7', '4628 4500 5893 9727', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Sasha Grey', '4514 4514 4514 4514', 'USA', 'sex@sex.com', '69669696');
 
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-15', '2021-06-30', 25, 'React Course', 29.90);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-02-24', '2022-04-10', 50, 'Ruby Course', 10.90);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-06-30', '2021-09-26', 35, 'Rest API Course', 8.88);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-07-24', '2021-11-22', 10, 'Java Course', 109.99);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-01-10', '2021-07-20', 5, 'Small Course', 100.00);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-01-11', '2021-11-11', 3, 'Very Small Course', 50.00);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-01-12', '2021-12-12', 20, 'Medium Size Course', 75.00);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-05-05', '2021-12-05', 20, 'Havent Start Course', 80.0);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2022-01-12', '2022-11-12', 10, 'Next Year Start Course', 90.0);
+INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2021-04-12', '2021-08-12', 10, 'C++ Course', 95.0);
 
 INSERT INTO Employees(name, address, phone, email, join_date, depart_date) VALUES('Freddy', 'Bishan St 11', '81234567', 'f@yahoo.com', '1997-04-26', null);
 INSERT INTO Employees(name, address, phone, email, join_date, depart_date) VALUES('Wei Boon', 'KR Hall', '89876543', 'W@gmail.com', '2000-07-21', '2020-12-31');
