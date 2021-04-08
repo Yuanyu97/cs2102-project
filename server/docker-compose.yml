@@ -12,7 +12,8 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/1-init.sql
       - ./views.sql:/docker-entrypoint-initdb.d/2-views.sql
       - ./triggers.sql:/docker-entrypoint-initdb.d/3-triggers.sql
-      - ./input.sql:/docker-entrypoint-initdb.d/4-input.sql
-      - ./custom_types.sql:/docker-entrypoint-initdb.d/5-custom_types.sql 
-      - ./functions.sql:/docker-entrypoint-initdb.d/6-functions.sql
+      - ./custom_types.sql:/docker-entrypoint-initdb.d/4-custom_types.sql 
+      - ./functions.sql:/docker-entrypoint-initdb.d/5-functions.sql
+      - ./input.sql:/docker-entrypoint-initdb.d/6-input.sql
+
       
