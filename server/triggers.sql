@@ -339,7 +339,8 @@ BEGIN
         SELECT 1
         FROM Registers 
         WHERE cust_id = NEW.cust_id AND course_id = NEW.course_id
-    ) THEN RETURN NULL;
+    ) THEN 
+        RAISE EXCEPTION 'Customer registered for one session under target course already';
     END IF;
     RETURN NEW;
 END;
@@ -399,7 +400,8 @@ BEGIN
         SELECT 1 
         FROM (Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id) AS X
         WHERE X.rid = NEW.rid AND X.s_date = session_date AND (session_end_time <= X.start_time OR X.end_time <= session_start_time)
-    ) THEN RETURN NULL;
+    ) THEN 
+        RAISE EXCEPTION 'more than one session being conducted at target room';
     END IF;
     RETURN NEW;
 END;
