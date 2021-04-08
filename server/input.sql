@@ -67,6 +67,83 @@ END IF;
 END;
 $$ LANGUAGE plpgsql;
 
+create or replace function pay_salary_with_date (in input_month integer, in input_year integer)
+returns table (
+eid integer,
+name text,
+status text,
+num_work_days integer,
+num_work_hours integer,
+hourly_rate numeric,
+monthly_salary numeric,
+amount numeric) AS $$
+
+declare
+	curs cursor FOR (select * from employees order by eid asc);
+	r record;
+	num_days integer;
+	num_hours integer;
+    max_days integer;
+	is_parttime boolean default FALSE;
+	is_fulltime boolean default FALSE;
+    curr_month integer;
+    curr_year integer;
+begin
+    curr_month := input_month;
+    curr_year := input_year;
+
+
+	open curs;
+	loop
+		fetch curs into r;
+		exit when not found;
+		eid := r.eid;
+		name := r.name;
+		select exists (select 1 from part_time_emp P where P.eid = r.eid) into is_parttime;
+
+		select exists (select 1 from full_time_emp F where F.eid = r.eid) into is_fulltime;
+		
+		if (is_parttime = TRUE) then
+		-- is a part_time_emp, calculate using hourly rate
+			status := 'part-time';
+			num_work_days := null;
+			monthly_salary := null;
+			num_work_hours := get_work_hours(eid, curr_month, curr_year);
+			select P.hourly_rate from part_time_emp P where P.eid = r.eid into hourly_rate;
+			amount := num_work_hours * hourly_rate;
+			
+			if (amount is not null AND amount > 0) then
+			insert into pay_slips_for(eid, payment_date, num_work_hours, num_work_days, amount)
+				values (eid, CONCAT(curr_year, '-', curr_month, '-01')::date, num_work_hours, null, amount);
+			
+			return next;
+			end if;
+			
+			
+
+		elsif (is_fulltime = TRUE) then
+		-- is a full_time_emp, calculate using monthly salary
+			status := 'full-time';
+			num_work_hours := null;
+			hourly_rate := null;
+			num_work_days := get_work_days(eid, curr_month, curr_year);
+			select P.monthly_salary from full_time_emp P where P.eid = r.eid into monthly_salary;
+
+            select extract('day' from (date_trunc('month', current_date) + interval '1 month' - interval '1    day')) into max_days;
+			amount := num_work_days * monthly_salary / max_days;
+
+			if (amount is not null) then
+			insert into pay_slips_for(eid, payment_date, num_work_hours, num_work_days, amount)
+				values (eid, CONCAT(curr_year, '-', curr_month, '-01')::date, null, num_work_days, amount);
+			return next;
+			end if;	
+			
+		end if;
+	end loop;
+	close curs;
+end;
+$$ language plpgsql;
+
 INSERT INTO Rooms(location, seating_capacity) VALUES('Bishan', 10);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Serangoon', 5);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Punggol', 20);
@@ -398,7 +475,7 @@ CALL buy_course_package_input(10, 10, '2020-02-22');
 
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2019-02-19', 9, '2019-11-01', 1);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2020-04-24', 6, '2020-04-24', 1);
-INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2019-02-19', 9, '2019-10-30', 2);
+INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (2, '2019-02-19', 9, '2018-10-30', 2);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-03-01', 1, '2021-03-01', 4);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2021-02-28', 4, '2021-02-28', 5);
 INSERT INTO Registers(sid, launch_date, course_id, registration_date, cust_id) VALUES (1, '2020-04-24', 6, '2020-04-24', 6);
@@ -418,5 +495,3 @@ INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, 
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-13', '2020-04-12', 9, 9, 2, 9, '2019-02-19');
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-23', '2020-02-22', 10, 10, 1, 6, '2020-04-24');
 
-
--- INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES(CURRENT_DATE, CURRENT_DATE, 3, 1, 1, 2, '2022-07-10');
