@@ -335,7 +335,10 @@ BEGIN
         FROM Registers R INNER JOIN Offerings O ON R.launch_date = O.launch_date AND R.course_id = O.course_id
         WHERE R.course_id = NEW.course_id AND R.sid = NEW.sid AND R.launch_date = NEW.launch_date
     ) AS X;
-    IF (NEW.registration_date > session_registration_deadline) OR EXISTS(
+    IF (NEW.registration_date > session_registration_deadline) THEN
+        raise EXCEPTION 'registration date after registration deadline';
+    END IF;
+    IF EXISTS(
         SELECT 1
         FROM Registers 
         WHERE cust_id = NEW.cust_id AND course_id = NEW.course_id

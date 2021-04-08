@@ -1762,7 +1762,13 @@ declare
     max_days integer;
 	is_parttime boolean default FALSE;
 	is_fulltime boolean default FALSE;
+    curr_month integer;
+    curr_year integer;
 begin
+    select extract('month' from current_date) into curr_month;
+    select extract('year' from current_date) into curr_year;
+
+
 	open curs;
 	loop
 		fetch curs into r;
@@ -1778,7 +1784,7 @@ begin
 			status := 'part-time';
 			num_work_days := null;
 			monthly_salary := null;
-			num_work_hours := get_work_hours(eid);
+			num_work_hours := get_work_hours(eid, curr_month, curr_year);
 			select P.hourly_rate from part_time_emp P where P.eid = r.eid into hourly_rate;
 			amount := num_work_hours * hourly_rate;
 			
@@ -1796,7 +1802,7 @@ begin
 			status := 'full-time';
 			num_work_hours := null;
 			hourly_rate := null;
-			num_work_days := get_work_days(eid);
+			num_work_days := get_work_days(eid, curr_month, curr_year);
 			select P.monthly_salary from full_time_emp P where P.eid = r.eid into monthly_salary;
 
             select extract('day' from (date_trunc('month', current_date) + interval '1 month' - interval '1    day')) into max_days;
@@ -1814,7 +1820,7 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function get_work_hours(in eid integer, out total integer)
+create or replace function get_work_hours(in eid integer, in curr_month integer, in curr_year integer, out total integer)
 returns integer as $$
 -- find eid occurrence in conducts table, (as iid)
 -- for each sid (under that iid), check sessions table to take end_time - start_time for duration
@@ -1827,6 +1833,9 @@ declare
 			from conducts	
 			where sid = eid
 		)
+        and extract('month' from s_date) = curr_month
+        and extract('year' from s_date) = curr_year
+     
 	);
 	r record;
 	start integer;
@@ -1851,7 +1860,7 @@ end;
 $$ language plpgsql;
 
 
-create or replace function get_work_days(in eid1 integer, out total integer)
+create or replace function get_work_days(in eid1 integer, in curr_month integer, in curr_year integer, out total integer)
 returns integer as $$
 -- find eid occurrence in employees table (as eid)
 -- first work day = 1, unless join date within month of payment
@@ -1862,17 +1871,19 @@ declare
  first integer;
  last integer;
  join_month integer;
+ join_year integer;
  depart_month integer;
- current_month integer;
+ depart_year integer;
 
 begin
  select extract('month' from employees.join_date) into join_month from employees where employees.eid =  eid1;
  select extract('month' from employees.depart_date) into depart_month from employees where employees.eid =  eid1;
- select extract('month' from current_date) into current_month;
+ select extract('year' from employees.join_date) into join_year from employees where employees.eid = eid1;
+ select extract('year' from employees.depart_date) into depart_year from employees where employees.eid = eid1;
  
  
  total := 0;
- if (join_month = current_month) then
+ if (join_month = curr_month AND join_year = curr_year) then
   -- first work day within month of payment
   select extract('day' from employees.join_date) into first from employees where employees.eid =   eid1;
  else
@@ -1881,11 +1892,11 @@ begin
 
  if (depart_month IS NULL) then
   -- has not departed
-  select extract('day' from (date_trunc('month', current_date) + interval '1 month' - interval '1    day')) into last;
- elsif (depart_month = current_month) then
+  select extract('day' from (date_trunc('month', CONCAT(curr_year, '-', curr_month, '-01')::date) + interval '1 month' - interval '1    day')) into last;
+ elsif (depart_month = curr_month AND depart_year = curr_year) then
   -- departed this month
   select extract('day' from employees.depart_date) into last from employees where employees.eid =   eid1;
- elsif (depart_month <> current_month) then
+ elsif (depart_month <> curr_month OR (depart_month = curr_month AND depart_year <> curr_year)) then
   -- departed before this month
     total := null;
     return;
