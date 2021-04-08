@@ -355,17 +355,24 @@ DECLARE
     session_start_time INTEGER;
     session_end_time INTEGER;
 BEGIN
-    SELECT s_date, start_time, end_time INTO session_date, session_start_time, session_end_time
-    FROM (
-        SELECT s_date, start_time, end_time
-        FROM Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id
-        WHERE S.sid = NEW.sid AND S.course_id = NEW.course_id
-    ) AS CS;
+    SELECT S.s_date, S.start_time, S.end_time INTO session_date, session_start_time, session_end_time
+    FROM Sessions S
+    WHERE S.sid = NEW.sid AND S.course_id = NEW.course_id AND S.launch_date = NEW.launch_date;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF (old.iid = new.iid AND old.sid = new.sid and old.course_id = new.course_id and old.launch_date = new.launch_date) THEN
+            -- update room situation just let pass....
+            RETURN NEW;
+        END IF;
+    END IF;
+
     IF EXISTS (
         SELECT 1 
-        FROM (Sessions S INNER JOIN Conducts C ON S.sid = C.sid AND S.course_id = C.course_id) AS X
-        where X.s_date = session_date AND X.iid = NEW.iid AND (session_end_time <= X.start_time OR X.end_time <= session_start_time)
-    ) THEN RETURN NULL;
+        FROM Sessions S, Conducts C
+        WHERE S.sid = C.sid AND S.course_id = C.course_id AND S.launch_date = C.launch_date
+            AND S.s_date = session_date AND C.iid = NEW.iid AND (S.start_time < session_end_time AND session_start_time < S.end_time)
+    ) THEN 
+        RAISE EXCEPTION 'Instructor can only teach one course session at any hour';
     END IF;
     RETURN NEW;
 END;
