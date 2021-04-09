@@ -1728,13 +1728,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
-select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
-from courses natural join table_1 natural join table_2 natural left join table_3;
-
-end;
-$$ language plpgsql;
-
 -- function 29
 create or replace function view_summary_report (in n integer)
 returns table (
