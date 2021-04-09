@@ -550,4 +550,4 @@ CALL insert_into_cancels_more_than_seven_days(6, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(1, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(7, 1, '2019-02-19',9);
 
-SELECT * FROM pay_salary_with_date(5, 2021);
+SELECT * FROM pay_salary_with_date(4, 2021);
