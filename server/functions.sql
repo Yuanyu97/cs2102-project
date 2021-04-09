@@ -1563,56 +1563,135 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function popular_courses()
-returns table(
-course_id integer,
-title text,
-area_name text,
-num_offerings BIGINT,
-num_register BIGINT
-) as $$
+-- create or replace function popular_courses()
+-- returns table(
+-- course_id integer,
+-- title text,
+-- area_name text,
+-- num_offerings BIGINT,
+-- num_register BIGINT
+-- ) as $$
+-- DECLARE
+--  curr_year integer;
+-- BEGIN
+--     select extract('year' from current_date) into curr_year;
+-- RETURN QUERY
+-- with table_1 as (Select Courses.course_id from
+-- Courses natural join offerings
+-- group by Courses.course_id
+-- having count(*) >= 2
+-- except
+-- (SELECT X.course_id
+-- FROM (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
+-- from Offerings natural left join Registers_redeems_view
+-- group by (Offerings.course_id, Offerings.launch_date)) AS X
+--  cross join 
+--  (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
+-- from Offerings natural left join Registers_redeems_view
+-- group by (Offerings.course_id, Offerings.launch_date)) AS Y
+--  WHERE X.course_id = Y.course_id AND
+--  X.launch_date <> Y.launch_date AND
+--  X.launch_date > Y.launch_date AND
+--  X.num_registers <= Y.num_registers)),
+ 
+-- table_2 as (
+-- select Courses.course_id, count(*) as num_offerings from 
+-- Courses natural join offerings
+-- group by Courses.course_id
+-- having count(*) >= 2
+--  ),
+ 
+-- table_3 as (
+--  select Offerings.course_id, count(*) as num_registers
+-- from Offerings natural join Registers_redeems_view
+-- group by (Offerings.course_id)
+--  )
+
+
+-- select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
+-- from courses natural join table_1 natural join table_2 natural left join table_3;
+
+-- end;
+-- $$ language plpgsql;
+
+CREATE OR REPLACE FUNCTION popular_courses() RETURNS TABLE (
+    cid INTEGER,
+    course_title TEXT,
+    course_area TEXT,
+    num_of_offerings_this_year BIGINT,
+    num_registrations_for_latest_offering_this_year INTEGER
+) AS $$
 DECLARE
- curr_year integer;
-BEGIN
-    select extract('year' from current_date) into curr_year;
-RETURN QUERY
-with table_1 as (Select Courses.course_id from
-Courses natural join offerings
-group by Courses.course_id
-having count(*) >= 2
-except
-(SELECT X.course_id
-FROM (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
-from Offerings natural left join Registers_redeems_view
-group by (Offerings.course_id, Offerings.launch_date)) AS X
- cross join 
- (select Offerings.course_id, Offerings.launch_date, count(cust_id) as num_registers
-from Offerings natural left join Registers_redeems_view
-group by (Offerings.course_id, Offerings.launch_date)) AS Y
- WHERE X.course_id = Y.course_id AND
- X.launch_date <> Y.launch_date AND
- X.launch_date > Y.launch_date AND
- X.num_registers <= Y.num_registers)),
- 
-table_2 as (
-select Courses.course_id, count(*) as num_offerings from 
-Courses natural join offerings
-group by Courses.course_id
-having count(*) >= 2
- ),
- 
-table_3 as (
- select Offerings.course_id, count(*) as num_registers
-from Offerings natural join Registers_redeems_view
-group by (Offerings.course_id)
- )
-
-
-select courses.course_id, courses.title, courses.area_name, table_2.num_offerings, table_3.num_registers
-from courses natural join table_1 natural join table_2 natural left join table_3;
-
-end;
-$$ language plpgsql;
+    r1 RECORD;
+    r2 RECORD;
+    last_num INTEGER;
+    flag BOOLEAN;
+BEGIN 
+    CREATE TEMPORARY TABLE OutputTable(
+        course_id INTEGER,
+        course_title TEXT,
+        course_area TEXT,
+        num_of_offerings_this_year BIGINT,
+        num_registrations_for_latest_offering_this_year INTEGER
+    );
+    FOR r1 IN WITH CoursesWithMoreThanOneOfferings AS (
+        SELECT course_id, COUNT(*) AS num_offerings
+        FROM Offerings
+        WHERE EXTRACT(YEAR FROM launch_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+        GROUP BY course_id
+        HAVING COUNT(*) >= 2
+    ) SELECT course_id, num_offerings FROM CoursesWithMoreThanOneOfferings
+    LOOP
+        flag := TRUE;
+        last_num := -1;
+        FOR r2 IN WITH CoursesWithMoreThanOneOfferings AS (
+            SELECT course_id, COUNT(*) AS num_offerings
+            FROM Offerings
+            WHERE EXTRACT(YEAR FROM launch_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            GROUP BY course_id
+            HAVING COUNT(*) >= 2
+        ), NumRegistrationsForExistOfferings AS (
+            SELECT course_id, launch_date, COUNT(*) AS num_registers
+            FROM Registers
+            WHERE course_id IN (
+                select course_id FROM CoursesWithMoreThanOneOfferings
+                )
+            GROUP BY course_id, launch_date
+        ), 
+        NumRegistrationsForEachOfferings AS (
+            SELECT course_id, launch_date, num_registers
+            FROM NumRegistrationsForExistOfferings
+            UNION
+            (SELECT course_id, launch_date, 0 as num_registers
+            FROM Offerings
+            WHERE course_id IN (SELECT course_id FROM CoursesWithMoreThanOneOfferings) AND (course_id, launch_date)
+            NOT IN (SELECT course_id, launch_date FROM NumRegistrationsForExistOfferings)
+            )
+            ORDER BY course_id, launch_date
+        ) SELECT course_id, launch_date, num_registers FROM NumRegistrationsForEachOfferings WHERE course_id = r1.course_id
+        LOOP
+            RAISE NOTICE '% % %', r2.course_id, r2.launch_date, r2.num_registers;
+            CONTINUE WHEN NOT flag;
+            IF r2.num_registers <= last_num THEN
+                flag := FALSE;
+            END IF;
+            last_num := r2.num_registers;
+        END LOOP;
+        IF flag THEN
+            INSERT INTO OutputTable VALUES ( 
+                r1.course_id, 
+                (SELECT title FROM Courses WHERE course_id = r1.course_id), 
+                (SELECT area_name FROM Courses WHERE course_id = r1.course_id),
+                r1.num_offerings,
+                last_num
+            );
+        END IF;
+    END LOOP;
+    RETURN QUERY
+    SELECT * FROM OutputTable 
+    ORDER BY num_registrations_for_latest_offering_this_year DESC, course_id ASC;
+END;
+$$ LANGUAGE plpgsql;
 
 create or replace function top_packages(in n integer)
 returns table (
