@@ -392,6 +392,13 @@ DECLARE
     session_start_time INTEGER;
     session_end_time INTEGER;
 BEGIN
+    -- if only update instructor id do not trigger!
+    IF (TG_OP = 'UPDATE') THEN
+        IF (old.rid = new.rid AND old.sid = new.sid and old.course_id = new.course_id and old.launch_date = new.launch_date) THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
     -- get the start time and end time. room id access from NEW.rid
     SELECT s_date, start_time, end_time INTO session_date, session_start_time, session_end_time 
     FROM (
