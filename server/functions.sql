@@ -1133,6 +1133,11 @@ WHERE
     Sessions.course_id = target_course_id AND
     Sessions.sid = target_sid;
 
+-- if session_s_date already in the past cannot cancel!
+IF (target_session_s_date < current_date) THEN
+    RAISE EXCEPTION 'Session was in the past: %. Cannot be cancelled', target_session_s_date
+END IF;
+
 -- check if is redeem or credit card
 IF (EXISTS (
     SELECT 1 
