@@ -104,27 +104,30 @@ DECLARE
 BEGIN
     SELECT depart_date INTO check_null_depart_date
     FROM Employees
-    WHERE eid = emp_id;
-    IF check_null_depart_date IS NULL THEN
+    WHERE emp_id = emp_id;
+    IF check_null_depart_date IS NOT NULL THEN
+        RAISE EXCEPTION 'cannot fire an employee who is leaving soon';
+    ELSIF emp_id IN (
+        SELECT DISTINCT mid FROM Course_areas
+    ) THEN 
+        RAISE EXCEPTION 'cannot fire a manager who manages some areas, who u want to manage the area?';
+    ELSIF emp_id IN (
+        SELECT DISTINCT aid FROM Offerings
+        WHERE registration_deadline > emp_depart_date
+    ) THEN 
+        RAISE EXCEPTION 'cannot fire an admin who handles some course area with registration date after depart date' ;
+    ELSIF emp_id IN (
         WITH SessionsAndInstructors AS (
         SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
         )
+        SELECT DISTINCT iid FROM SessionsAndInstructors
+        WHERE s_date > emp_depart_date
+    ) THEN 
+        RAISE EXCEPTION 'cannot fire an instructor who teaches some session that starts after depart date' ;
+    ELSE
         UPDATE Employees 
         SET depart_date = emp_depart_date
-        WHERE eid = emp_id AND emp_id NOT IN (
-            SELECT DISTINCT mid FROM Course_areas
-            WHERE mid = emp_id
-            UNION
-            SELECT DISTINCT iid FROM SessionsAndInstructors
-            WHERE s_date > emp_depart_date
-            AND iid = emp_id
-            UNION 
-            SELECT DISTINCT aid FROM Offerings
-            WHERE registration_deadline > emp_depart_date
-            AND aid = emp_id
-        );
-    ELSE
-        RAISE EXCEPTION 'cannot fire an employee who is leaving soon';
+        WHERE eid = emp_id;
     END IF;
     -- WITH SessionsAndInstructors AS (
     --     SELECT iid , s_date FROM Sessions S INNER JOIN Conducts C on C.sid = S.sid and S.course_id = C.course_id and C.launch_date = S.launch_date
@@ -172,6 +175,9 @@ CREATE OR REPLACE PROCEDURE update_credit_card (
 DECLARE 
     old_credit_card_number TEXT;
 BEGIN
+    IF new_credit_card_expiry_date < CURRENT_DATE THEN
+        RAISE EXCEPTION 'cannot set a credit card that has already expired';
+    END IF;
     SELECT credit_card_number INTO old_credit_card_number FROM Customers WHERE cid = cust_id;
     UPDATE Credit_cards
     SET credit_card_number = new_credit_card_number,
@@ -204,13 +210,12 @@ DECLARE
     offering_launch_date DATE;
     r RECORD;
 BEGIN
-    -- how to get session duration?
-    -- course duration / number of sessions in offering
-    -- how to get course duration? Course.duration
-    -- how to get number of sessions in offering? given: cid, session_start_date
-    -- find session launch date in Sessions
-    -- use Sessions - group by course_id and launch_date 
-    -- Count rows
+    IF cid NOT IN (
+        SELECT course_id 
+        FROM Courses
+    ) THEN
+        RAISE EXCEPTION 'No such course offered.';
+    END IF;
     SELECT launch_date INTO offering_launch_date FROM Sessions
     WHERE course_id = cid AND s_date = session_start_date AND start_time = session_start_hour
     LIMIT 1;
@@ -324,7 +329,7 @@ BEGIN
                 WHERE C.course_id = cid AND C.area_name = I.area_name
             )
             EXCEPT 
-            SELECT DISTINCT iid 
+            (SELECT DISTINCT iid 
             FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
             GROUP BY iid 
             HAVING SUM(end_time - start_time) >= 30
