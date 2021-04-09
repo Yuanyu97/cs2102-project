@@ -202,7 +202,7 @@ CREATE TABLE Cancels (
   cancel_date DATE,
   cust_id integer REFERENCES Customers,
   sid integer,
-  launch_Date DATE,
+  launch_date DATE,
   course_id integer,
   refund_amt NUMERIC,
   package_credit integer,
