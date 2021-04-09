@@ -961,6 +961,7 @@ Sessions.start_time as start_time, Courses.duration as session_duration, Employe
 FROM Courses, Offerings, Sessions, Employees, registers_redeems_view, Conducts
 WHERE 
 Employees.eid = Conducts.iid AND
+Conducts.sid = Sessions.sid AND
 Conducts.course_id = Sessions.course_id AND
 Conducts.launch_date = Sessions.launch_date AND
 Courses.course_id = Offerings.course_id AND
