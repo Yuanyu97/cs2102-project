@@ -1,3 +1,4 @@
+--start of helper input functions
 CREATE OR REPLACE PROCEDURE add_course_offering_input(
 	c_id INTEGER,
 	c_fees NUMERIC,
@@ -143,6 +144,80 @@ begin
 	close curs;
 end;
 $$ language plpgsql;
+
+CREATE OR REPLACE PROCEDURE insert_into_cancels_more_than_seven_days(
+    target_cancel_cust_id INTEGER,
+    target_cancel_sid INTEGER,
+    target_cancel_launch_date DATE,
+    target_cancel_course_id INTEGER
+) AS $$
+DECLARE 
+    --target_refund_amt NUMERIC;
+    target_cancel_date DATE;
+BEGIN
+    -- SELECT fees INTO target_refund_amt
+    -- FROM Offerings
+    -- WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    SELECT s_date - 10 INTO target_cancel_date 
+    FROM Sessions
+    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    INSERT INTO Cancels(
+        cancel_date,
+        cust_id,
+        sid,
+        launch_date,
+        course_id,
+        refund_amt,
+        package_credit
+    ) VALUES(
+        target_cancel_date,
+        target_cancel_cust_id,
+        target_cancel_sid,
+        target_cancel_launch_date,
+        target_cancel_course_id,
+        0,
+        0
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE insert_into_cancels_less_than_seven_days(
+    target_cancel_cust_id INTEGER,
+    target_cancel_sid INTEGER,
+    target_cancel_launch_date DATE,
+    target_cancel_course_id INTEGER
+) AS $$
+DECLARE 
+    target_refund_amt NUMERIC;
+    target_cancel_date DATE;
+BEGIN
+    SELECT ROUND((fees * 0.9)::NUMERIC, 2) INTO target_refund_amt
+    FROM Offerings
+    WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    SELECT s_date - 5 INTO target_cancel_date 
+    FROM Sessions
+    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    INSERT INTO Cancels(
+        cancel_date,
+        cust_id,
+        sid,
+        launch_date,
+        course_id,
+        refund_amt,
+        package_credit
+    ) VALUES(
+        target_cancel_date,
+        target_cancel_cust_id,
+        target_cancel_sid,
+        target_cancel_launch_date,
+        target_cancel_course_id,
+        target_refund_amt,
+        1
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+--end of helper input functions
 
 INSERT INTO Rooms(location, seating_capacity) VALUES('Com2 #02-02', 10);
 INSERT INTO Rooms(location, seating_capacity) VALUES('Biz Auditorium #01-01', 5);
@@ -464,78 +539,6 @@ INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, 
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-13', '2020-04-12', 9, 9, 2, 9, '2019-02-19');
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-23', '2020-02-22', 10, 10, 1, 6, '2020-04-24');
 
-CREATE OR REPLACE PROCEDURE insert_into_cancels_more_than_seven_days(
-    target_cancel_cust_id INTEGER,
-    target_cancel_sid INTEGER,
-    target_cancel_launch_date DATE,
-    target_cancel_course_id INTEGER
-) AS $$
-DECLARE 
-    --target_refund_amt NUMERIC;
-    target_cancel_date DATE;
-BEGIN
-    -- SELECT fees INTO target_refund_amt
-    -- FROM Offerings
-    -- WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    SELECT s_date - 10 INTO target_cancel_date 
-    FROM Sessions
-    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    INSERT INTO Cancels(
-        cancel_date,
-        cust_id,
-        sid,
-        launch_date,
-        course_id,
-        refund_amt,
-        package_credit
-    ) VALUES(
-        target_cancel_date,
-        target_cancel_cust_id,
-        target_cancel_sid,
-        target_cancel_launch_date,
-        target_cancel_course_id,
-        0,
-        0
-    );
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE PROCEDURE insert_into_cancels_less_than_seven_days(
-    target_cancel_cust_id INTEGER,
-    target_cancel_sid INTEGER,
-    target_cancel_launch_date DATE,
-    target_cancel_course_id INTEGER
-) AS $$
-DECLARE 
-    target_refund_amt NUMERIC;
-    target_cancel_date DATE;
-BEGIN
-    SELECT ROUND((fees * 0.9)::NUMERIC, 2) INTO target_refund_amt
-    FROM Offerings
-    WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    SELECT s_date - 5 INTO target_cancel_date 
-    FROM Sessions
-    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    INSERT INTO Cancels(
-        cancel_date,
-        cust_id,
-        sid,
-        launch_date,
-        course_id,
-        refund_amt,
-        package_credit
-    ) VALUES(
-        target_cancel_date,
-        target_cancel_cust_id,
-        target_cancel_sid,
-        target_cancel_launch_date,
-        target_cancel_course_id,
-        target_refund_amt,
-        1
-    );
-END;
-$$ LANGUAGE plpgsql;
-
 CALL insert_into_cancels_less_than_seven_days(10, 2, '2021-04-01', 10);
 CALL insert_into_cancels_less_than_seven_days(9, 2, '2021-01-21', 8);
 CALL insert_into_cancels_less_than_seven_days(1, 2, '2019-02-19', 9);
@@ -547,3 +550,4 @@ CALL insert_into_cancels_more_than_seven_days(6, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(1, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(7, 1, '2019-02-19',9);
 
+SELECT * FROM pay_salary_with_date(5, 2021);
