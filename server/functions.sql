@@ -1705,7 +1705,6 @@ BEGIN
             ORDER BY course_id, launch_date
         ) SELECT course_id, launch_date, num_registers FROM NumRegistrationsForEachOfferings WHERE course_id = r1.course_id
         LOOP
-            RAISE NOTICE '% % %', r2.course_id, r2.launch_date, r2.num_registers;
             CONTINUE WHEN NOT flag;
             IF r2.num_registers <= last_num THEN
                 flag := FALSE;
