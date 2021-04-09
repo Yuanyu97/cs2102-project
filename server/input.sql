@@ -1,3 +1,4 @@
+--start of helper input functions
 CREATE OR REPLACE PROCEDURE add_course_offering_input(
 	c_id INTEGER,
 	c_fees NUMERIC,
@@ -144,16 +145,86 @@ begin
 end;
 $$ language plpgsql;
 
-INSERT INTO Rooms(location, seating_capacity) VALUES('Bishan', 10);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Serangoon', 5);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Punggol', 20);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Whompoa', 17);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Lorong Chuan', 30);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Tenteram', 13);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Ang Mo Kio', 50);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Choa Chu Kang', 1);
-INSERT INTO Rooms(location, seating_capacity) VALUES('I3', 5);
-INSERT INTO Rooms(location, seating_capacity) VALUES('Kent Ridge Hall', 15);
+CREATE OR REPLACE PROCEDURE insert_into_cancels_more_than_seven_days(
+    target_cancel_cust_id INTEGER,
+    target_cancel_sid INTEGER,
+    target_cancel_launch_date DATE,
+    target_cancel_course_id INTEGER
+) AS $$
+DECLARE 
+    --target_refund_amt NUMERIC;
+    target_cancel_date DATE;
+BEGIN
+    -- SELECT fees INTO target_refund_amt
+    -- FROM Offerings
+    -- WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    SELECT s_date - 10 INTO target_cancel_date 
+    FROM Sessions
+    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    INSERT INTO Cancels(
+        cancel_date,
+        cust_id,
+        sid,
+        launch_date,
+        course_id
+    ) VALUES(
+        target_cancel_date,
+        target_cancel_cust_id,
+        target_cancel_sid,
+        target_cancel_launch_date,
+        target_cancel_course_id
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE insert_into_cancels_less_than_seven_days(
+    target_cancel_cust_id INTEGER,
+    target_cancel_sid INTEGER,
+    target_cancel_launch_date DATE,
+    target_cancel_course_id INTEGER
+) AS $$
+DECLARE 
+    target_refund_amt NUMERIC;
+    target_cancel_date DATE;
+BEGIN
+    SELECT ROUND((fees * 0.9)::NUMERIC, 2) INTO target_refund_amt
+    FROM Offerings
+    WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    SELECT s_date - 5 INTO target_cancel_date 
+    FROM Sessions
+    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
+    INSERT INTO Cancels(
+        cancel_date,
+        cust_id,
+        sid,
+        launch_date,
+        course_id,
+        refund_amt,
+        package_credit
+    ) VALUES(
+        target_cancel_date,
+        target_cancel_cust_id,
+        target_cancel_sid,
+        target_cancel_launch_date,
+        target_cancel_course_id,
+        target_refund_amt,
+        1
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+--end of helper input functions
+
+INSERT INTO Rooms(location, seating_capacity) VALUES('Com2 #02-02', 10);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Biz Auditorium #01-01', 5);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Com2 #01-15', 20);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Com1 #02-26', 17);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Com1 #02-16', 30);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Biz Lecture Room 1 #03-10', 13);
+INSERT INTO Rooms(location, seating_capacity) VALUES('Biz Lecture Room 2 #03-15', 50);
+INSERT INTO Rooms(location, seating_capacity) VALUES('AR6 #03-20', 1);
+INSERT INTO Rooms(location, seating_capacity) VALUES('I3 #01-02', 5);
+INSERT INTO Rooms(location, seating_capacity) VALUES('I3 #01-20', 15);
 
 INSERT INTO Credit_cards VALUES('4628 4500 1234 5678', '123', '2021-03-29', '2020-03-29');
 INSERT INTO Credit_cards VALUES('4628 4500 9876 5432', '345', '2021-02-15', '2019-07-15');
@@ -169,15 +240,15 @@ INSERT INTO Credit_cards VALUES('4628 4500 5893 9727', '413', '2030-09-08', '202
 
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Freddy', '4628 4500 1234 5678', 'Bishan St 11', 'f@yahoo.com', '81234567');
 INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Wei Boon', '4628 4500 9876 5432', 'KR Hall', 'W@gmail.com', '89876543');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Weng Fai', '4628 4500 8593 8572', 'Sheares Juzz', 'weng@yahoo.com', '91234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Dian Hao', '4628 4500 6969 6969', 'Best Chai', 'd@outlook.com', '69696969');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Tan', '4628 4500 5893 9721', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Harrold Tan', '4628 4500 5893 9722', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Ng Jun Wei', '4628 4500 5893 9723', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Seng Rong Liang', '4628 4500 5893 9724', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Lee Sheng Siong', '4628 4500 5893 9725', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Peggy Tan', '4628 4500 5893 9726', 'USA', 'ph@onz.com', '61234567');
-INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Demacia Wong', '4628 4500 5893 9727', 'USA', 'ph@onz.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Weng Fai', '4628 4500 8593 8572', 'Sheares Hall', 'weng@yahoo.com', '91234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Dian Hao', '4628 4500 6969 6969', 'Eusoff Hall', 'd@outlook.com', '69696969');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Johnny Tan', '4628 4500 5893 9721', 'Raffles Hall', 'jt@gmail.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Harrold Tan', '4628 4500 5893 9722', 'Temasek Hall', 'hart@outlook.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Ng Jun Wei', '4628 4500 5893 9723', 'PGP Hall', 'njw@yahoo.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Seng Rong Liang', '4628 4500 5893 9724', 'RVRC', 'ronglaingseng@outlook.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Lee Sheng Siong', '4628 4500 5893 9725', 'UTR', 'sslee@karhart.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Peggy Tan', '4628 4500 5893 9726', 'Tembusu', 'peggytan@gmail.com', '61234567');
+INSERT INTO Customers(name, credit_card_number, address, email, phone) VALUES('Demacia Wong', '4628 4500 5893 9727', 'CAPT', 'demwong@lomotif.com', '61234567');
 
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-03-20', '2021-04-20', 10, 'Free Udemy Course', 69.99);
 INSERT INTO Course_packages(sale_start_date, sale_end_date, num_free_registrations, package_name, price) VALUES('2019-04-15', '2021-06-30', 25, 'React Course', 29.90);
@@ -230,48 +301,6 @@ insert into Employees (name, address, phone, email, join_date) values ('Derek Fr
 insert into Employees (name, address, phone, email, join_date) values ('Frank Haskett', '1039 Rigney Pass', '1388722837', 'fhasketty@sitemeter.com', '2020-08-01');
 insert into Employees (name, address, phone, email, join_date) values ('Dame Hamnett', '59858 Daystar Way', '2737752185', 'dhamnettz@skyrock.com', '2020-07-07');
 insert into Employees (name, address, phone, email, join_date) values ('Norma Leal', '4 Jenna Parkway', '4431153666', 'nleal10@icq.com', '2020-08-29');
--- insert into Employees (name, address, phone, email, join_date) values ('Donny Joanic', '84 Packers Terrace', '9522013014', 'djoanic11@prlog.org', '2020-08-21');
--- insert into Employees (name, address, phone, email, join_date) values ('Jonis Fluck', '314 Lunder Center', '5685216700', 'jfluck12@google.co.uk', '2020-11-13');
--- insert into Employees (name, address, phone, email, join_date) values ('Yorker O''Hearn', '424 Springview Court', '5932817150', 'yohearn13@berkeley.edu', '2021-04-01');
--- insert into Employees (name, address, phone, email, join_date) values ('Thorpe Linacre', '7 Swallow Circle', '7135495037', 'tlinacre14@independent.co.uk', '2020-05-10');
--- insert into Employees (name, address, phone, email, join_date) values ('Emerson Muff', '2837 Manitowish Crossing', '3344321382', 'emuff15@dmoz.org', '2021-03-08');
--- insert into Employees (name, address, phone, email, join_date) values ('Ignaz Orrill', '14999 Bonner Street', '4955550908', 'iorrill16@yale.edu', '2020-06-21');
--- insert into Employees (name, address, phone, email, join_date) values ('Vicki Barrowcliff', '229 Oak Court', '3285441333', 'vbarrowcliff17@hibu.com', '2020-06-30');
--- insert into Employees (name, address, phone, email, join_date) values ('Dianemarie Broderick', '27 New Castle Plaza', '4345088403', 'dbroderick18@imgur.com', '2020-12-13');
--- insert into Employees (name, address, phone, email, join_date) values ('Cherilynn Kanwell', '804 Pleasure Way', '9409007684', 'ckanwell19@csmonitor.com', '2020-05-01');
--- insert into Employees (name, address, phone, email, join_date) values ('Marita De Winton', '50 Scoville Street', '3491649630', 'mde1a@comcast.net', '2020-09-10');
--- insert into Employees (name, address, phone, email, join_date) values ('Roselia Le Breton De La Vieuville', '6102 Paget Avenue', '9263741201', 'rle1b@cafepress.com', '2021-02-20');
--- insert into Employees (name, address, phone, email, join_date) values ('Lila Sims', '74 Jenna Drive', '3805808721', 'lsims1c@ovh.net', '2020-09-01');
--- insert into Employees (name, address, phone, email, join_date) values ('Rina Leeburn', '1990 Havey Circle', '4151403016', 'rleeburn1d@admin.ch', '2020-07-04');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Gaelan Poat', '215 Portage Place', '9905664047', 'gpoat0@123-reg.co.uk', '2020-12-04', '2021-11-28');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Cleo Rummins', '085 Maywood Lane', '2813477159', 'crummins1@reddit.com', '2020-09-04', '2021-08-13');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Rees Lowdes', '55 South Center', '7374478805', 'rlowdes2@omniture.com', '2021-01-23', '2021-09-24');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Godfrey Clowley', '7 Coolidge Park', '3306812820', 'gclowley3@berkeley.edu', '2020-11-09', '2021-06-29');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Nikola Madison', '2 Cordelia Junction', '3266436490', 'nmadison4@phpbb.com', '2020-11-16', '2021-12-07');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Nancey Danilishin', '4 Prentice Hill', '4728837477', 'ndanilishin5@uol.com.br', '2021-01-24', '2021-11-17');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Ranna Passler', '3695 Aberg Hill', '7133684414', 'rpassler6@opera.com', '2020-05-19', '2021-11-18');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Henrietta Pingston', '973 Vermont Center', '6812878105', 'hpingston7@woothemes.com', '2020-08-27', '2021-06-28');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Tonye Jerson', '8 Almo Lane', '7422320345', 'tjerson8@baidu.com', '2020-09-25', '2021-09-18');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Heriberto Sket', '874 Dwight Place', '1075993495', 'hsket9@artisteer.com', '2020-05-13', '2021-10-27');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Quint Lemmer', '42878 Valley Edge Plaza', '5464251601', 'qlemmera@usa.gov', '2021-03-28', '2021-11-25');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Jeni Febre', '416 Sullivan Plaza', '7519949051', 'jfebreb@telegraph.co.uk', '2020-12-27', '2022-03-11');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Cara Cathie', '499 Bowman Center', '7373678041', 'ccathiec@bravesites.com', '2020-11-27', '2022-01-20');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Hertha Spellissy', '6 Schmedeman Court', '6845834935', 'hspellissyd@mysql.com', '2020-05-24', '2021-10-02');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Letta Quaif', '92479 Pleasure Junction', '7366914519', 'lquaife@parallels.com', '2020-08-30', '2021-08-01');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Fanny Riceards', '54527 Oriole Park', '6081339581', 'friceardsf@sfgate.com', '2020-11-22', '2021-07-02');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Sherman O''Halligan', '376 Badeau Circle', '1118094283', 'sohalligang@blog.com', '2020-08-24', '2021-05-05');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Andrus Greeson', '88 Portage Alley', '2095594114', 'agreesonh@forbes.com', '2020-05-21', '2021-07-21');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Catlee Ickeringill', '87792 Carpenter Way', '4086275176', 'cickeringilli@reference.com', '2020-08-22', '2021-07-23');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Cordelie Longworthy', '37648 Johnson Park', '4331005792', 'clongworthyj@linkedin.com', '2020-04-06', '2021-11-08');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Dewey Dreng', '89981 Kinsman Street', '7887766416', 'ddrengk@chron.com', '2020-12-21', '2022-01-02');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Lenard MacCurley', '57 Badeau Pass', '7574757645', 'lmaccurleyl@soup.io', '2021-01-02', '2021-07-21');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Kendell Whiston', '11324 Holy Cross Road', '8416230649', 'kwhistonm@kickstarter.com', '2020-07-06', '2022-01-13');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Briano Cottage', '08 Autumn Leaf Pass', '2022457471', 'bcottagen@go.com', '2021-03-31', '2021-10-09');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Moria Climie', '14336 Montana Drive', '2005707144', 'mclimieo@reuters.com', '2021-01-16', '2021-08-26');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Delora Knight', '96911 Ridgeview Street', '2359531054', 'dknightp@google.nl', '2021-01-25', '2021-10-25');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Reine Seint', '07 Spohn Place', '8474182484', 'rseintq@usa.gov', '2020-05-01', '2021-08-27');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Walther Spark', '8 Drewry Point', '9928712177', 'wsparkr@bizjournals.com', '2020-06-14', '2021-08-27');
--- insert into Employees (name, address, phone, email, join_date, depart_date) values ('Mattie Blanchard', '8324 Arrowood Park', '4605981130', 'mblanchards@clickbank.net', '2021-01-25', '2022-01-22');
 
 
 INSERT INTO Part_Time_Emp VALUES(1, 80);
@@ -372,27 +401,27 @@ INSERT INTO Instructors VALUES(38, 'C');
 INSERT INTO Instructors VALUES(39, 'Tableau');
 INSERT INTO Instructors VALUES(40, 'C++');
 
-INSERT INTO Part_Time_Instructor VALUES(1, 'Python');
-INSERT INTO Part_Time_Instructor VALUES(2, 'Java');
-INSERT INTO Part_Time_Instructor VALUES(3, 'Python');
-INSERT INTO Part_Time_Instructor VALUES(4, 'C++');
-INSERT INTO Part_Time_Instructor VALUES(5, 'C');
-INSERT INTO Part_Time_Instructor VALUES(6, 'Java');
-INSERT INTO Part_Time_Instructor VALUES(7, 'Tableau');
-INSERT INTO Part_Time_Instructor VALUES(8, 'C');
-INSERT INTO Part_Time_Instructor VALUES(9, 'Tableau');
-INSERT INTO Part_Time_Instructor VALUES(10, 'C++');
+INSERT INTO Part_Time_Instructors VALUES(1, 'Python');
+INSERT INTO Part_Time_Instructors VALUES(2, 'Java');
+INSERT INTO Part_Time_Instructors VALUES(3, 'Python');
+INSERT INTO Part_Time_Instructors VALUES(4, 'C++');
+INSERT INTO Part_Time_Instructors VALUES(5, 'C');
+INSERT INTO Part_Time_Instructors VALUES(6, 'Java');
+INSERT INTO Part_Time_Instructors VALUES(7, 'Tableau');
+INSERT INTO Part_Time_Instructors VALUES(8, 'C');
+INSERT INTO Part_Time_Instructors VALUES(9, 'Tableau');
+INSERT INTO Part_Time_Instructors VALUES(10, 'C++');
 
-INSERT INTO Full_Time_Instructor VALUES(31, 'Python');
-INSERT INTO Full_Time_Instructor VALUES(32, 'Java');
-INSERT INTO Full_Time_Instructor VALUES(33, 'Python');
-INSERT INTO Full_Time_Instructor VALUES(34, 'C++');
-INSERT INTO Full_Time_Instructor VALUES(35, 'C');
-INSERT INTO Full_Time_Instructor VALUES(36, 'Java');
-INSERT INTO Full_Time_Instructor VALUES(37, 'Tableau');
-INSERT INTO Full_Time_Instructor VALUES(38, 'C');
-INSERT INTO Full_Time_Instructor VALUES(39, 'Tableau');
-INSERT INTO Full_Time_Instructor VALUES(40, 'C++');
+INSERT INTO Full_Time_Instructors VALUES(31, 'Python');
+INSERT INTO Full_Time_Instructors VALUES(32, 'Java');
+INSERT INTO Full_Time_Instructors VALUES(33, 'Python');
+INSERT INTO Full_Time_Instructors VALUES(34, 'C++');
+INSERT INTO Full_Time_Instructors VALUES(35, 'C');
+INSERT INTO Full_Time_Instructors VALUES(36, 'Java');
+INSERT INTO Full_Time_Instructors VALUES(37, 'Tableau');
+INSERT INTO Full_Time_Instructors VALUES(38, 'C');
+INSERT INTO Full_Time_Instructors VALUES(39, 'Tableau');
+INSERT INTO Full_Time_Instructors VALUES(40, 'C++');
 
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Hackwagon', 1, 'Python for newbies', 'Python');
 INSERT INTO Courses(title, duration, description, area_name) VALUES('Java Bootcamp', 2, 'Java for beginners', 'Java');
@@ -506,78 +535,6 @@ INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, 
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-13', '2020-04-12', 9, 9, 2, 9, '2019-02-19');
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-23', '2020-02-22', 10, 10, 1, 6, '2020-04-24');
 
-CREATE OR REPLACE PROCEDURE insert_into_cancels_more_than_seven_days(
-    target_cancel_cust_id INTEGER,
-    target_cancel_sid INTEGER,
-    target_cancel_launch_date DATE,
-    target_cancel_course_id INTEGER
-) AS $$
-DECLARE 
-    --target_refund_amt NUMERIC;
-    target_cancel_date DATE;
-BEGIN
-    -- SELECT fees INTO target_refund_amt
-    -- FROM Offerings
-    -- WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    SELECT s_date - 10 INTO target_cancel_date 
-    FROM Sessions
-    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    INSERT INTO Cancels(
-        cancel_date,
-        cust_id,
-        sid,
-        launch_date,
-        course_id,
-        refund_amt,
-        package_credit
-    ) VALUES(
-        target_cancel_date,
-        target_cancel_cust_id,
-        target_cancel_sid,
-        target_cancel_launch_date,
-        target_cancel_course_id,
-        0,
-        0
-    );
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE PROCEDURE insert_into_cancels_less_than_seven_days(
-    target_cancel_cust_id INTEGER,
-    target_cancel_sid INTEGER,
-    target_cancel_launch_date DATE,
-    target_cancel_course_id INTEGER
-) AS $$
-DECLARE 
-    target_refund_amt NUMERIC;
-    target_cancel_date DATE;
-BEGIN
-    SELECT ROUND((fees * 0.9)::NUMERIC, 2) INTO target_refund_amt
-    FROM Offerings
-    WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    SELECT s_date - 5 INTO target_cancel_date 
-    FROM Sessions
-    WHERE sid = target_cancel_sid AND course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
-    INSERT INTO Cancels(
-        cancel_date,
-        cust_id,
-        sid,
-        launch_date,
-        course_id,
-        refund_amt,
-        package_credit
-    ) VALUES(
-        target_cancel_date,
-        target_cancel_cust_id,
-        target_cancel_sid,
-        target_cancel_launch_date,
-        target_cancel_course_id,
-        target_refund_amt,
-        1
-    );
-END;
-$$ LANGUAGE plpgsql;
-
 CALL insert_into_cancels_less_than_seven_days(10, 2, '2021-04-01', 10);
 CALL insert_into_cancels_less_than_seven_days(9, 2, '2021-01-21', 8);
 CALL insert_into_cancels_less_than_seven_days(1, 2, '2019-02-19', 9);
@@ -589,3 +546,4 @@ CALL insert_into_cancels_more_than_seven_days(6, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(1, 1, '2020-04-24', 6);
 CALL insert_into_cancels_more_than_seven_days(7, 1, '2019-02-19',9);
 
+SELECT * FROM pay_salary_with_date(5, 2021);

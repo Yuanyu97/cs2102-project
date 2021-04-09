@@ -1,3 +1,12 @@
+DROP FUNCTION IF EXISTS
+add_employee, remove_employee, add_customer, update_credit_card, add_course,
+find_instructors, get_available_instructors, find_rooms, get_available_rooms, add_course_offering,
+add_course_package, get_available_course_packages, buy_course_package, get_my_course_package, get_available_course_offerings,
+get_available_course_sessions, register_session, get_my_registrations, update_course_session, cancel_registration,
+update_instructor, update_room, remove_session, add_session, pay_salary,
+promote_courses, top_packages, popular_courses, view_summary_report, view_manager_report,
+get_work_days, get_work_hours;
+
 CREATE OR REPLACE PROCEDURE add_employee (
     emp_name TEXT,
     emp_home_address TEXT,
@@ -63,7 +72,7 @@ BEGIN
             FOREACH emp_course_area in ARRAY emp_course_areas
             LOOP
                 INSERT INTO Instructors(Iid, area_name) VALUES(emp_id, emp_course_area);
-                INSERT INTO Full_Time_Instructor(ftid, area_name) VALUES(emp_id, emp_course_area);
+                INSERT INTO full_time_instructors(ftid, area_name) VALUES(emp_id, emp_course_area);
             END LOOP;
         END IF;
     -- part time emp
@@ -78,8 +87,8 @@ BEGIN
             INSERT INTO Part_Time_Emp(eid, hourly_rate) VALUES(emp_id, emp_hourly_rate);
             FOREACH emp_course_area in ARRAY emp_course_areas
             LOOP
-                INSERT INTO Instructors(iid, area_name) VALUES(emp_id, emp_course_area);
-                INSERT INTO Part_Time_Instructor(ptid, area_name) VALUES(emp_id, emp_course_area);
+                INSERT INTO Instructors(iid, course_area) VALUES(emp_id, emp_course_area);
+                INSERT INTO Part_Time_Instructors(ptid, course_area) VALUES(emp_id, emp_course_area);
             END LOOP;
         END IF;
     END IF;
@@ -223,7 +232,7 @@ BEGIN
     RETURN QUERY
     WITH SpecializingInstructors AS (
         SELECT DISTINCT ftid AS iid
-        FROM Full_Time_Instructor FT
+        FROM full_time_instructors FT
         WHERE EXISTS (
             SELECT 1
             FROM Courses C
@@ -231,7 +240,7 @@ BEGIN
         )
         UNION
         SELECT DISTINCT ptid AS iid
-        FROM Part_Time_Instructor PT
+        FROM Part_Time_Instructors PT
         WHERE EXISTS (
             SELECT 1
             FROM Courses C
@@ -253,7 +262,7 @@ BEGIN
         HAVING SUM(end_time - start_time) >= 30
         EXCEPT
         SELECT ftid
-        FROM Full_Time_Instructor
+        FROM full_time_instructors
     ),
     -- must course_id same as cid?
     -- no, the instructor just has to specialize in that area
@@ -274,118 +283,6 @@ BEGIN
     FROM AvailableInstructors INNER JOIN Employees ON iid = eid;
 END;
 $$ LANGUAGE plpgsql;
-
--- CREATE OR REPLACE FUNCTION get_available_instructors(
---     cid INTEGER,
---     course_start_date DATE,
---     course_end_date DATE
--- ) RETURNS TABLE(emp_id INTEGER, emp_name TEXT, emp_total_hours INTEGER, emp_avail_day DATE, emp_avail_hours INT[]) AS $$
--- DECLARE
---     r RECORD;
---     date_diff INTEGER;
---     counter_date INTEGER;
---     counter_hours INTEGER;
---     current_date DATE;
---     avail_hours INTEGER[];
--- BEGIN
---     CREATE OR REPLACE VIEW SpecializingInstructors AS (
---         SELECT DISTINCT ftid AS iid
---         FROM Full_Time_Instructor FT
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE cid = C.course_id AND C.area_name = FT.area_name
---         )
---         UNION
---         SELECT DISTINCT ptid AS iid
---         FROM Part_Time_Instructor PT
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE cid = C.course_id  AND C.area_name = PT.area_name
---         )
---         UNION
---         SELECT DISTINCT iid
---         FROM Instructors I
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE cid = C.course_id AND C.area_name = I.area_name
---         )
---     );
---     CREATE OR REPLACE VIEW ConductsAndSessions AS (
---         SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
---         FROM Conducts C INNER JOIN Sessions S ON C.sid = S.sid AND C.course_id = S.course_id
---         ORDER BY iid, s_date
---     );
---     CREATE OR REPLACE VIEW InstructorsWhoTeachThisMonth AS (
---         SELECT iid, start_time, end_time
---         FROM ConductsAndSessions
---         WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM CURRENT_DATE)
---     );
---     CREATE OR REPLACE VIEW InstructorsWhoDoesNotTeachThisMonth AS (
---         SELECT iid, 0 AS teaching_hours
---         FROM (SELECT iid FROM SpecializingInstructors EXCEPT SELECT iid FROM InstructorsWhoTeachThisMonth) AS X
---     );
---     CREATE OR REPLACE VIEW InstructorsHoursOfTheMonth AS (
---         SELECT iid, SUM(end_time - start_time) AS teaching_hours
---         FROM InstructorsWhoTeachThisMonth
---         GROUP BY iid
---         UNION
---         SELECT iid, teaching_hours
---         FROM InstructorsWhoDoesNotTeachThisMonth
---     );
-
---     date_diff := course_end_date - course_start_date;   
---     FOR r in 
---         SELECT DISTINCT ftid AS iid
---         FROM Full_Time_Instructor FT
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE C.course_id = cid AND C.area_name = FT.area_name
---         )
---         UNION
---         SELECT DISTINCT ptid AS iid
---         FROM Part_Time_Instructor PT
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE C.course_id = cid AND C.area_name = PT.area_name
---         )
---         UNION
---         SELECT DISTINCT iid
---         FROM Instructors I
---         WHERE EXISTS (
---             SELECT 1
---             FROM Courses C
---             WHERE C.course_id = cid AND C.area_name = I.area_name
---         )
---     LOOP
---         --FETCH curs INTO r;
---         --EXIT WHEN NOT FOUND;
---         current_date := course_start_date;
---         FOR counter_date IN 1..date_diff
---         LOOP
-            -- avail_hours := "{}";
-            -- FOR counter_hours in 9..17 
-            -- LOOP
-            --     CONTINUE WHEN counter_hours = 12 OR counter_hours = 13 OR 
-            --         EXISTS(
-            --             SELECT 1 
-            --             FROM ConductsAndSessions C
-            --             WHERE r.iid = C.iid AND C.s_date = current_date AND C.start_time <= counter_hours AND counter_hours <= C.end_time
-            --         );
-            --     avail_hours := ARRAY_APPEND(avail_hours, counter_hours);
---             END LOOP;
---             RETURN QUERY
---             SELECT r.iid, (SELECT name FROM Employees WHERE eid = r.iid), 
---                 (SELECT teaching_hours FROM InstructorsHoursOfTheMonth WHERE iid = r.iid), current_date, avail_hours;
---         END LOOP;
---         current_date := current_date + 1;
---     END LOOP; 
--- END;
--- $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION get_available_instructors (
     cid INTEGER,
@@ -409,7 +306,7 @@ BEGIN
     date_diff := course_end_date - course_start_date; 
     FOR r IN WITH SpecializingInstructors AS (
         SELECT DISTINCT ftid AS iid
-            FROM Full_Time_Instructor FT
+            FROM full_time_instructors FT
             WHERE EXISTS (
                 SELECT 1
                 FROM Courses C
@@ -417,7 +314,7 @@ BEGIN
             )
             UNION
             SELECT DISTINCT ptid AS iid
-            FROM Part_Time_Instructor PT
+            FROM Part_Time_Instructors PT
             WHERE EXISTS (
                 SELECT 1
                 FROM Courses C
@@ -438,7 +335,7 @@ BEGIN
             HAVING SUM(end_time - start_time) >= 30
             EXCEPT
             SELECT ftid
-            FROM Full_Time_Instructor)
+            FROM full_time_instructors
         ),
         ConductsAndSessions AS (
             SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
@@ -507,7 +404,7 @@ BEGIN
                                 SELECT iid 
                                 FROM (
                                     SELECT DISTINCT ftid AS iid
-                                    FROM Full_Time_Instructor FT
+                                    FROM full_time_instructors FT
                                     WHERE EXISTS (
                                         SELECT 1
                                         FROM Courses C
@@ -515,7 +412,7 @@ BEGIN
                                     )
                                     UNION
                                     SELECT DISTINCT ptid AS iid
-                                    FROM Part_Time_Instructor PT
+                                    FROM Part_Time_Instructors PT
                                     WHERE EXISTS (
                                         SELECT 1
                                         FROM Courses C
@@ -966,6 +863,7 @@ Sessions.start_time as start_time, Courses.duration as session_duration, Employe
 FROM Courses, Offerings, Sessions, Employees, registers_redeems_view, Conducts
 WHERE 
 Employees.eid = Conducts.iid AND
+Conducts.sid = Sessions.sid AND
 Conducts.course_id = Sessions.course_id AND
 Conducts.launch_date = Sessions.launch_date AND
 Courses.course_id = Offerings.course_id AND
@@ -1137,6 +1035,11 @@ WHERE
     Sessions.course_id = target_course_id AND
     Sessions.sid = target_sid;
 
+-- if session_s_date already in the past cannot cancel!
+IF (target_session_s_date < current_date) THEN
+    RAISE EXCEPTION 'Session was in the past: %. Cannot be cancelled', target_session_s_date;
+END IF;
+
 -- check if is redeem or credit card
 IF (EXISTS (
     SELECT 1 
@@ -1265,7 +1168,27 @@ CREATE OR REPLACE PROCEDURE update_room (
 ) AS $$
 DECLARE
 session_start_date DATE;
+no_of_registrations INTEGER;
+target_seating_capacity INTEGER;
 BEGIN
+
+-- check room exists
+IF NOT EXISTS ((
+    SELECT 1 
+    FROM Rooms
+    WHERE rid = new_rid
+)) THEN 
+    RAISE EXCEPTION 'Target room id: %, does not exist in databse', new_rid;
+END IF;
+
+-- check conducts exists
+IF NOT EXISTS ((
+    SELECT 1 
+    FROM Conducts
+    WHERE Conducts.sid = target_sid AND Conducts.course_id = target_course_id AND Conducts.launch_date = target_offering_launch_date
+)) THEN 
+    RAISE EXCEPTION 'Target session, does not exist in databse. CourseId %, lanchdate %, sid %', target_course_id, target_offering_launch_date, target_sid;
+END IF;
 
 -- get session_start_id
 SELECT s_date INTO session_start_date
@@ -1275,6 +1198,19 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
 RAISE EXCEPTION 'Course session has started';
+END IF;
+
+
+SELECT COUNT(*) INTO no_of_registrations
+FROM Sessions
+WHERE Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date AND Sessions.course_id = target_course_id;
+
+SELECT seating_capacity INTO target_seating_capacity
+FROM Rooms
+WHERE Rooms.rid = new_rid;
+
+IF (no_of_registrations > target_seating_capacity) THEN
+    RAISE EXCEPTION 'Target room does not have enough seating capacity. Total registerd: %. Seating capacity: %', no_of_registrations, target_seating_capacity;
 END IF;
 
 -- actual update
@@ -1304,6 +1240,14 @@ session_start_date DATE;
 num_registered_to_session INTEGER;
 BEGIN
 
+IF (NOT EXISTS (
+    SELECT 1 
+    FROM Sessions
+    WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date
+)) THEN 
+    RAISE EXCEPTION 'Course session does not exist';
+END IF;
+
 -- get session_start_id
 SELECT s_date INTO session_start_date
 FROM Sessions
@@ -1313,14 +1257,6 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
     RAISE EXCEPTION 'Course session has started';
-END IF;
-
-IF (NOT EXISTS (
-    SELECT 1 
-    FROM Sessions
-    WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date
-)) THEN 
-    RAISE EXCEPTION 'Course session does not exist';
 END IF;
 
 -- check nobody registered
@@ -1337,7 +1273,6 @@ END IF;
 -- check if session is only one for couse_offering
 IF ((SELECT count(*) FROM Sessions 
         WHERE 
-            Sessions.sid = target_sid AND
             Sessions.course_id = target_course_id AND
             Sessions.launch_date = target_offering_launch_date) = 1
     ) THEN 
@@ -1405,17 +1340,17 @@ IF (EXISTS (
     FROM Employees
     WHERE Employees.eid = target_iid 
     AND depart_date IS NOT NULL 
-    AND depart_date < session_start_date
+    AND depart_date < s_date
 )) THEN
     RAISE EXCEPTION 'Target instructor has departed before session start date';
 END IF;
 
 -- insert into sessions here
-INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date, rid) 
-    VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date,rid);
+INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date)
+    VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date);
 
-INSERT INTO Conducts(iid, area_name, sid, course_id, rid) 
-    VALUES (target_iid, course_area_name, new_sid, offering_course_id, rid);
+INSERT INTO Conducts(iid, area_name, sid, course_id, launch_date, rid) 
+    VALUES (target_iid, course_area_name, new_sid, offering_course_id, offering_launch_date, rid);
 
 END;
 $$ LANGUAGE plpgsql;

@@ -1,6 +1,6 @@
 drop table if exists Rooms, Customers, Credit_cards, Course_packages, Buys,
- Employees, Part_Time_Emp, Full_Time_Emp, Instructors, Part_Time_Instructor,
- Full_Time_Instructor, Managers, Administrators, Course_areas, Courses, Offerings,
+ Employees, Part_Time_Emp, Full_Time_Emp, Instructors, Part_Time_Instructors,
+ Full_Time_Instructors, Managers, Administrators, Course_areas, Courses, Offerings,
  Sessions, Cancels, Registers, Redeems, Pay_slips_for cascade; 
 
 -- checked
@@ -114,7 +114,7 @@ CREATE TABLE Instructors (
 );
 
 -- checked
-CREATE TABLE Part_Time_Instructor (
+CREATE TABLE Part_Time_Instructors (
   ptid integer REFERENCES Part_Time_Emp
     ON DELETE CASCADE,
   area_name TEXT,
@@ -125,7 +125,7 @@ CREATE TABLE Part_Time_Instructor (
 );
 
 -- checked
-CREATE TABLE Full_Time_Instructor (
+CREATE TABLE Full_Time_Instructors (
   ftid integer REFERENCES Full_Time_Emp
     ON DELETE CASCADE,
   area_name TEXT, 
