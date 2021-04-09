@@ -166,17 +166,13 @@ BEGIN
         cust_id,
         sid,
         launch_date,
-        course_id,
-        refund_amt,
-        package_credit
+        course_id
     ) VALUES(
         target_cancel_date,
         target_cancel_cust_id,
         target_cancel_sid,
         target_cancel_launch_date,
-        target_cancel_course_id,
-        0,
-        0
+        target_cancel_course_id
     );
 END;
 $$ LANGUAGE plpgsql;
