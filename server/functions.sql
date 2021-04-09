@@ -1135,7 +1135,7 @@ WHERE
 
 -- if session_s_date already in the past cannot cancel!
 IF (target_session_s_date < current_date) THEN
-    RAISE EXCEPTION 'Session was in the past: %. Cannot be cancelled', target_session_s_date
+    RAISE EXCEPTION 'Session was in the past: %. Cannot be cancelled', target_session_s_date;
 END IF;
 
 -- check if is redeem or credit card
@@ -1266,7 +1266,27 @@ CREATE OR REPLACE PROCEDURE update_room (
 ) AS $$
 DECLARE
 session_start_date DATE;
+no_of_registrations INTEGER;
+target_seating_capacity INTEGER;
 BEGIN
+
+-- check room exists
+IF NOT EXISTS ((
+    SELECT 1 
+    FROM Rooms
+    WHERE rid = new_rid
+)) THEN 
+    RAISE EXCEPTION 'Target room id: %, does not exist in databse', new_rid;
+END IF;
+
+-- check conducts exists
+IF NOT EXISTS ((
+    SELECT 1 
+    FROM Conducts
+    WHERE Conducts.sid = target_sid AND Conducts.course_id = target_course_id AND Conducts.launch_date = target_offering_launch_date
+)) THEN 
+    RAISE EXCEPTION 'Target session, does not exist in databse. CourseId %, lanchdate %, sid %', target_course_id, target_offering_launch_date, target_sid;
+END IF;
 
 -- get session_start_id
 SELECT s_date INTO session_start_date
@@ -1276,6 +1296,19 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
 RAISE EXCEPTION 'Course session has started';
+END IF;
+
+
+SELECT COUNT(*) INTO no_of_registrations
+FROM Sessions
+WHERE Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date AND Sessions.course_id = target_course_id;
+
+SELECT seating_capacity INTO target_seating_capacity
+FROM Rooms
+WHERE Rooms.rid = new_rid;
+
+IF (no_of_registrations > target_seating_capacity) THEN
+    RAISE EXCEPTION 'Target room does not have enough seating capacity. Total registerd: %. Seating capacity: %', no_of_registrations, target_seating_capacity;
 END IF;
 
 -- actual update
@@ -1305,6 +1338,14 @@ session_start_date DATE;
 num_registered_to_session INTEGER;
 BEGIN
 
+IF (NOT EXISTS (
+    SELECT 1 
+    FROM Sessions
+    WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date
+)) THEN 
+    RAISE EXCEPTION 'Course session does not exist';
+END IF;
+
 -- get session_start_id
 SELECT s_date INTO session_start_date
 FROM Sessions
@@ -1314,14 +1355,6 @@ WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Se
 -- check course session has not started
 IF (session_start_date < CURRENT_DATE) THEN 
     RAISE EXCEPTION 'Course session has started';
-END IF;
-
-IF (NOT EXISTS (
-    SELECT 1 
-    FROM Sessions
-    WHERE Sessions.sid = target_sid AND Sessions.course_id = target_course_id AND Sessions.launch_date = target_offering_launch_date
-)) THEN 
-    RAISE EXCEPTION 'Course session does not exist';
 END IF;
 
 -- check nobody registered
@@ -1338,7 +1371,6 @@ END IF;
 -- check if session is only one for couse_offering
 IF ((SELECT count(*) FROM Sessions 
         WHERE 
-            Sessions.sid = target_sid AND
             Sessions.course_id = target_course_id AND
             Sessions.launch_date = target_offering_launch_date) = 1
     ) THEN 
@@ -1406,17 +1438,17 @@ IF (EXISTS (
     FROM Employees
     WHERE Employees.eid = target_iid 
     AND depart_date IS NOT NULL 
-    AND depart_date < session_start_date
+    AND depart_date < s_date
 )) THEN
     RAISE EXCEPTION 'Target instructor has departed before session start date';
 END IF;
 
 -- insert into sessions here
-INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date, rid) 
-    VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date,rid);
+INSERT INTO Sessions(sid, s_date, start_time, end_time, course_id, launch_date)
+    VALUES(new_sid, s_date, start_hour, start_hour + offering_duration, offering_course_id, offering_launch_date);
 
-INSERT INTO Conducts(iid, area_name, sid, course_id, rid) 
-    VALUES (target_iid, course_area_name, new_sid, offering_course_id, rid);
+INSERT INTO Conducts(iid, area_name, sid, course_id, launch_date, rid) 
+    VALUES (target_iid, course_area_name, new_sid, offering_course_id, offering_launch_date, rid);
 
 END;
 $$ LANGUAGE plpgsql;
