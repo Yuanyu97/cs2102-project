@@ -335,7 +335,7 @@ BEGIN
             HAVING SUM(end_time - start_time) >= 30
             EXCEPT
             SELECT ftid
-            FROM full_time_instructors
+            FROM full_time_instructors)
         ),
         ConductsAndSessions AS (
             SELECT C.sid, C.course_id, s_date, start_time, end_time, iid
