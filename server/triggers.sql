@@ -289,7 +289,7 @@ target_start_time INTEGER;
 target_end_time INTEGER;
 BEGIN
     IF (EXISTS (
-        SELECT 1 FROM Part_Time_Instructor WHERE ptid = NEW.iid
+        SELECT 1 FROM Part_Time_Instructors WHERE ptid = NEW.iid
     )) THEN 
         is_part_time_instructor := TRUE;
     END IF; 
