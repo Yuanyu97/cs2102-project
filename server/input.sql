@@ -506,3 +506,4 @@ INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, 
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-04-13', '2020-04-12', 9, 9, 2, 9, '2019-02-19');
 INSERT INTO Redeems(redeem_date, buy_date, cust_id, package_id, sid, course_id, launch_date) VALUES('2020-02-23', '2020-02-22', 10, 10, 1, 6, '2020-04-24');
 
+SELECT * FROM pay_salary_with_date(5, 2021)

@@ -578,11 +578,9 @@ DECLARE
     curs refcursor;
     r RECORD;
     curr_date DATE := start_date;
-    start_hour_1 INTEGER := 9;
-    start_hour_2 INTEGER := 14;
     arr INT[];
-    start_hour INTEGER;
-    end_hour INTEGER;
+    num_rooms INTEGER;
+    curr_room_cap INTEGER;
 BEGIN
     CREATE TEMPORARY TABLE output_table(
         r_id INTEGER,
@@ -590,72 +588,42 @@ BEGIN
         day DATE,
         hours INT[]
     );
-LOOP
-    OPEN curs FOR SELECT Rooms.rid, COALESCE(Rooms.seating_capacity - registersTable.num_registrations - redeemsTable.num_redeems, Rooms.seating_capacity - registersTable.num_registrations, Rooms.seating_capacity - redeemsTable.num_redeems, Rooms.seating_capacity) as r_capacity, COALESCE(redeemsTable.sid, registersTable.sid) AS sid, COALESCE(redeemsTable.course_id, registersTable.course_id) AS course_id, COALESCE(redeemsTable.launch_date, registersTable.launch_date) AS launch_date 
-    FROM Rooms 
-    LEFT JOIN (
-        SELECT COUNT(Redeems.cust_id) as num_redeems, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
-        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Redeems 
-        WHERE Sessions.s_date = curr_date
-        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
-    ) AS redeemsTable ON Rooms.rid = redeemsTable.rid
-    FULL OUTER JOIN (
-        SELECT COUNT(Registers.cust_id) as num_registrations, Conducts.sid, Conducts.course_id, Conducts.launch_date, Conducts.rid
-        FROM Conducts NATURAL JOIN Sessions NATURAL LEFT JOIN Registers
-        WHERE Sessions.s_date = curr_date
-        GROUP BY Conducts.course_id, Conducts.launch_date, Conducts.sid, Conducts.rid
-    ) registersTable ON redeemsTable.rid = registersTable.rid;
-    LOOP
-        FETCH curs INTO r;
-        EXIT WHEN NOT FOUND;
-            LOOP
-                IF (r.r_capacity = 0) THEN
+    SELECT COUNT(Rooms.rid) INTO num_rooms FROM Rooms;
+    LOOP --loop on date change
+        FOR room_id IN 1..num_rooms LOOP --room loop
+            arr :=  array_cat(arr, ARRAY[9, 10, 11, 14, 15, 16, 17]);
+            SELECT seating_capacity INTO curr_room_cap FROM Rooms WHERE rid = room_id;
+            OPEN curs FOR SELECT Conducts.rid, Sessions.s_date, Sessions.start_time, Sessions.end_time, COUNT(registers_redeems_view.cust_id) as num_reg_red
+                FROM Sessions 
+                NATURAL JOIN Conducts
+                LEFT JOIN registers_redeems_view  
+                ON registers_redeems_view.sid = Sessions.sid AND registers_redeems_view.course_id = Sessions.course_id AND registers_redeems_view.launch_date = Sessions.launch_date
+                WHERE Sessions.s_date = curr_date AND Conducts.rid = room_id
+                GROUP BY Conducts.rid, Sessions.s_date, Sessions.start_time, Sessions.end_time
+                ORDER BY Sessions.s_date;   
+            LOOP --curs
+                FETCH curs INTO r;
+                IF (NOT FOUND) THEN
+                    INSERT INTO output_table VALUES(room_id, curr_room_cap, curr_date, arr);
                     EXIT;
                 END IF;
-                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
-                IF (start_hour IS NULL AND end_hour IS NULL) THEN
-                    arr := array_cat(arr, ARRAY[9, 10, 11]);
-                    EXIT;
-                END IF;
-                IF (start_hour_1 < start_hour OR start_hour_1 > end_hour) THEN
-                    arr := array_append(arr, start_hour_1);
-                END IF;
-                start_hour_1 := start_hour_1 + 1;
-                IF (start_hour_1 > 11) THEN
-                    start_hour_1 := 9;
-                    EXIT;
-                END IF;
-            END LOOP;
-            LOOP
-                IF (r.r_capacity = 0) THEN
-                    EXIT;
-                END IF;
-                SELECT start_time, end_time INTO start_hour, end_hour FROM Sessions WHERE Sessions.sid = r.sid AND Sessions.course_id = r.course_id AND Sessions.launch_date = r.launch_date;
-                IF (start_hour IS NULL AND end_hour IS NULL) THEN
-                    arr := array_cat(arr, ARRAY[14, 15, 16, 17, 18]);
-                    EXIT;
-                END IF;
-                IF (start_hour_2 < start_hour OR start_hour_2 > end_hour) THEN
-                    arr := array_append(arr, start_hour_2);
-                END IF;
-                start_hour_2 := start_hour_2 + 1;
-                IF (start_hour_2 >= 18) THEN
-                    start_hour_2 := 14;
-                    EXIT;
-                END IF;
-            END LOOP;
-            INSERT INTO output_table VALUES(r.rid, r.r_capacity, curr_date, arr);
+                curr_room_cap := curr_room_cap - r.num_reg_red;
+                FOR hour IN r.start_time..r.end_time LOOP --hour loop
+                    arr := array_remove(arr,hour);
+                END LOOP; --end hour loop
+            END LOOP; --end curs loop
+            CLOSE curs;
             arr := NULL;
-    END LOOP;
-    CLOSE curs;
-    curr_date := curr_date + 1;
-    EXIT WHEN curr_date > end_date;
-END LOOP;
+        END LOOP; -- end room loop
+        curr_date := curr_date + 1;
+        EXIT WHEN curr_date > end_date;
+    END LOOP; --end date loop
     RETURN QUERY
     SELECT * FROM output_table ORDER BY r_id, day;
     DROP TABLE output_table;
 END;
 $$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE PROCEDURE add_course_offering(
 	c_id INTEGER,
