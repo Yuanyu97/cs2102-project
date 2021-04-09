@@ -37,7 +37,7 @@ BEGIN
   WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions > 0;
 
   IF (num_active_packages > 0) THEN
-    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has active course', NEW.cust_id;
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has active course package', NEW.cust_id;
   END IF;
 
   SELECT COUNT(Buys.package_id) INTO num_partial_active_packages
@@ -45,7 +45,7 @@ BEGIN
   WHERE Buys.cust_id = NEW.cust_id AND Buys.num_remaining_redemptions = 0 AND redeem_date <= Sessions.s_date - 7;
 
   IF (num_partial_active_packages > 0) THEN
-    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has partial active course', NEW.cust_id;
+    RAISE EXCEPTION 'Unable to purchase course package. Customer % still has partial active course package', NEW.cust_id;
   END IF;
   SELECT num_free_registrations INTO num_remaining_redemptions FROM Course_packages WHERE Course_packages.package_id = NEW.package_id;
   NEW.num_remaining_redemptions = num_remaining_redemptions;
