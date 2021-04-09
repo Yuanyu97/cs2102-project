@@ -552,7 +552,7 @@ DECLARE
     target_refund_amt NUMERIC;
     target_cancel_date DATE;
 BEGIN
-    SELECT fees INTO target_refund_amt
+    SELECT ROUND((fees * 0.9)::NUMERIC, 2) INTO target_refund_amt
     FROM Offerings
     WHERE course_id = target_cancel_course_id AND launch_date = target_cancel_launch_date;
     SELECT s_date - 5 INTO target_cancel_date 
