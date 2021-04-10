@@ -584,9 +584,11 @@ CREATE OR REPLACE FUNCTION find_rooms (
         SELECT rid
         FROM Sessions NATURAL JOIN Conducts 
         WHERE s_date = session_date AND 
-              ((start_time < session_start_hour AND  session_start_hour < end_time)
-              OR 
-               (start_time < session_start_hour + session_duration AND session_start_hour + session_duration < end_time)
+              ((session_start_hour >= start_time AND session_start_hour <= end_time)
+                OR 
+               (session_start_hour + session_duration >= start_time AND session_start_hour + session_duration <= end_time)
+                OR
+               (session_start_hour <= start_time AND session_start_hour + session_duration >= end_time) 
               )
     )
     SELECT rid FROM Rooms

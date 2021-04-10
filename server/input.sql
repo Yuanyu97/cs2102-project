@@ -443,8 +443,8 @@ CALL add_course_offering_input(1, 99, '2021-03-01', '2021-05-01', 100, 21, array
 ]);
 --duplicate course offering for course_id = 1
 CALL add_course_offering_input(1, 99, '2021-01-01', '2021-05-01', 50, 21, array[
-    cast(row('2021-05-12', 9, 7) as session_array),
-    cast(row('2021-05-13', 14, 7) as session_array)
+    cast(row('2021-05-12', 9, 5) as session_array),
+    cast(row('2021-05-13', 14, 5) as session_array)
 ]);
 CALL add_course_offering_input(2, 20, '2021-03-05', '2021-06-15', 5, 22, 
 array[
@@ -478,8 +478,8 @@ array[
 ]);
 CALL add_course_offering_input(8, 44.41, '2021-01-21', '2021-04-22', 15, 28, 
 array[
-    cast(row('2021-05-12', 10, 7) as session_array),
-    cast(row('2021-05-13', 15, 5) as session_array)
+    cast(row('2021-05-12', 10, 6) as session_array),
+    cast(row('2021-05-13', 15, 4) as session_array)
 ]);
 CALL add_course_offering_input(9, 60.60, '2019-02-19', '2019-10-15', 20, 29, 
 array[
@@ -494,8 +494,8 @@ array[
 --additional course offering for course_id = 10
 CALL add_course_offering_input(10, 99.10, '2021-01-02', '2021-05-10', 18, 30, 
 array[
-    cast(row('2021-05-24', 10, 10) as session_array),
-    cast(row('2021-05-25', 14, 9) as session_array)
+    cast(row('2021-05-24', 10, 7) as session_array),
+    cast(row('2021-05-25', 14, 7) as session_array)
 ]);
 
 -- CREATE OR REPLACE PROCEDURE buy_course_package(
