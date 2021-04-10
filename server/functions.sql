@@ -1669,25 +1669,25 @@ BEGIN
         num_of_offerings_this_year BIGINT,
         num_registrations_for_latest_offering_this_year INTEGER
     );
-    FOR r1 IN WITH CoursesWithMoreThanOneOfferings AS (
-        SELECT course_id, COUNT(*) AS num_offerings
+    FOR r1 IN WITH CoursesWithMoreThanOneOfferings AS ( --looping through courses
+        SELECT course_id, COUNT(course_id) AS num_offerings
         FROM Offerings
         WHERE EXTRACT(YEAR FROM launch_date) = EXTRACT(YEAR FROM CURRENT_DATE)
         GROUP BY course_id
-        HAVING COUNT(*) >= 2
+        HAVING COUNT(launch_date) >= 2
     ) SELECT course_id, num_offerings FROM CoursesWithMoreThanOneOfferings
     LOOP
         flag := TRUE;
         last_num := -1;
-        FOR r2 IN WITH CoursesWithMoreThanOneOfferings AS (
-            SELECT course_id, COUNT(*) AS num_offerings
+        FOR r2 IN WITH CoursesWithMoreThanOneOfferings AS ( 
+            SELECT course_id, COUNT(course_id) AS num_offerings
             FROM Offerings
             WHERE EXTRACT(YEAR FROM launch_date) = EXTRACT(YEAR FROM CURRENT_DATE)
             GROUP BY course_id
-            HAVING COUNT(*) >= 2
+            HAVING COUNT(launch_date) >= 2
         ), NumRegistrationsForExistOfferings AS (
-            SELECT course_id, launch_date, COUNT(*) AS num_registers
-            FROM Registers
+            SELECT course_id, launch_date, COUNT(cust_id) AS num_registers
+            FROM registers_redeems_view
             WHERE course_id IN (
                 select course_id FROM CoursesWithMoreThanOneOfferings
                 )
@@ -1724,6 +1724,7 @@ BEGIN
     RETURN QUERY
     SELECT * FROM OutputTable 
     ORDER BY num_registrations_for_latest_offering_this_year DESC, course_id ASC;
+    DROP TABLE OutputTable;
 END;
 $$ LANGUAGE plpgsql;
 
