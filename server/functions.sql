@@ -424,12 +424,16 @@ CREATE OR REPLACE FUNCTION get_available_instructors (
 DECLARE
     r RECORD;
     date_diff INTEGER;
+    course_duration INTEGER;
     counter_date INTEGER;
     counter_hours INTEGER;
     current_date DATE;
     avail_hours INTEGER[];
 BEGIN
     date_diff := course_end_date - course_start_date; 
+    SELECT duration INTO course_duration 
+    FROM Courses
+    WHERE course_id = cid;
     FOR r IN WITH SpecializingInstructors AS (
         SELECT DISTINCT ftid AS iid
             FROM full_time_instructors FT
@@ -457,8 +461,9 @@ BEGIN
             EXCEPT 
             (SELECT DISTINCT iid 
             FROM Conducts C INNER JOIN Sessions S ON S.sid = C.sid AND S.course_id = C.course_id
+            WHERE EXTRACT(MONTH FROM s_date) = EXTRACT(MONTH FROM course_start_date)
             GROUP BY iid 
-            HAVING SUM(end_time - start_time) >= 30
+            HAVING SUM(end_time - start_time) + course_duration > 30
             EXCEPT
             SELECT ftid
             FROM full_time_instructors)
