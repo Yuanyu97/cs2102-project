@@ -139,7 +139,7 @@ CREATE TABLE Full_Time_Instructors (
 CREATE TABLE Courses (
   course_id SERIAL PRIMARY KEY,
   title text NOT NULL,
-  duration integer,
+  duration integer NOT NULL,
   description text,
   area_name text NOT NULL REFERENCES Course_areas,
   check (duration <= 4)
