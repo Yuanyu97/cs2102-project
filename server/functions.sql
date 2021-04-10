@@ -584,12 +584,7 @@ CREATE OR REPLACE FUNCTION find_rooms (
         SELECT rid
         FROM Sessions NATURAL JOIN Conducts 
         WHERE s_date = session_date AND 
-              ((session_start_hour >= start_time AND session_start_hour <= end_time)
-                OR 
-               (session_start_hour + session_duration >= start_time AND session_start_hour + session_duration <= end_time)
-                OR
-               (session_start_hour <= start_time AND session_start_hour + session_duration >= end_time) 
-              )
+            (session_start_hour < Sessions.end_time AND Sessions.start_time < (session_start_hour + session_duration))
     )
     SELECT rid FROM Rooms
     EXCEPT 
@@ -640,7 +635,7 @@ BEGIN
                     EXIT;
                 END IF;
                 curr_room_cap := curr_room_cap - r.num_reg_red;
-                FOR hour IN r.start_time..r.end_time LOOP --hour loop
+                FOR hour IN r.start_time..r.end_time - 1 LOOP --hour loop
                     arr := array_remove(arr,hour);
                 END LOOP; --end hour loop
             END LOOP; --end curs loop
@@ -1496,6 +1491,25 @@ target_launch_date date,
 target_registration_deadline date,
 target_fees numeric
 ) as $$
+begin
+    return query
+    select * from promote_courses_helper()
+    order by target_cust_id asc, target_registration_deadline asc;
+end;
+$$ language plpgsql;
+
+
+create or replace function promote_courses_helper()
+returns table (
+target_cust_id integer,
+target_cust_name text,
+target_area_name text,
+target_course_id integer,
+target_title text,
+target_launch_date date,
+target_registration_deadline date,
+target_fees numeric
+) as $$
 
 declare
 	curs refcursor;
@@ -1579,7 +1593,8 @@ begin
 								from offerings
 								where offerings.course_id = r1.course_id
 								and launch_date <= current_date
-								and current_date <= registration_deadline);
+								and current_date <= registration_deadline
+                                order by registration_deadline);
 				
 				loop
 					fetch curs2 into r2;
@@ -1598,11 +1613,9 @@ begin
 		end loop;
 		close curs1;
 		
-	
 	end loop;
 
 close curs;
-
 
 end;
 $$ language plpgsql;
