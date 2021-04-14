@@ -916,6 +916,7 @@ DECLARE
     offering_end_date DATE;
     target_package_id INTEGER;
     target_package_buy_date DATE;
+    target_session_s_date DATE;
 BEGIN
 
 SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
@@ -927,6 +928,15 @@ where Offerings.course_id = offering_course_id AND Offerings.launch_date = offer
 IF (payment_method NOT in ('credit_card', 'redemption')) THEN
     RAISE EXCEPTION 'Payment method must be credit_card or redemption only';
 END IF;
+
+SELECT s_date into target_session_s_date
+from Sessions
+where Sessions.course_id = offering_course_id AND Sessions.launch_date = offering_launch_date and Sessions.sid = target_sid;
+
+
+if target_session_s_date < current_date then
+    RAISE EXCEPTION 'Target session date has passed';
+end if;
 
 -- process redemption transaction
 IF (payment_method = 'redemption') THEN 
@@ -1260,6 +1270,7 @@ IF NOT EXISTS ((
     RAISE EXCEPTION 'Target session, does not exist in databse. CourseId %, lanchdate %, sid %', target_course_id, target_offering_launch_date, target_sid;
 END IF;
 
+
 -- get session_start_id
 SELECT s_date INTO session_start_date
 FROM Sessions
@@ -1272,8 +1283,8 @@ END IF;
 
 
 SELECT COUNT(*) INTO no_of_registrations
-FROM Sessions
-WHERE Sessions.sid = target_sid AND Sessions.launch_date = target_offering_launch_date AND Sessions.course_id = target_course_id;
+FROM registers_redeems_view
+WHERE registers_redeems_view.sid = target_sid AND registers_redeems_view.launch_date = target_offering_launch_date AND registers_redeems_view.course_id = target_course_id;
 
 SELECT seating_capacity INTO target_seating_capacity
 FROM Rooms
@@ -1369,7 +1380,9 @@ course_area_name TEXT;
 offering_duration INTEGER;
 BEGIN
 
--- check No two sessions for the same course offering can be conducted on the same day and at the same time
+if s_date < current_date then
+    RAISE EXCEPTION 'Specified session date has passed';
+end if;
 
 -- get registration deadline
 SELECT Offerings.registration_deadline, Offerings.start_date, Offerings.end_date
